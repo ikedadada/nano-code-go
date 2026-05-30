@@ -1,0 +1,295 @@
+package a2a
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"html"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+
+	appa2a "nano-code-go/internal/application/a2a"
+	"nano-code-go/internal/domain"
+)
+
+type Env map[string]string
+
+func EnvFromOS() Env {
+	env := make(Env)
+	for _, item := range os.Environ() {
+		key, value, ok := strings.Cut(item, "=")
+		if ok {
+			env[key] = value
+		}
+	}
+	return env
+}
+
+type Options struct {
+	Env           Env
+	RunAgent      appa2a.RunAgent
+	WorkspaceRoot string
+}
+
+type App struct {
+	handler http.Handler
+	service *appa2a.Service
+	token   string
+}
+
+func NewApp(options Options) *App {
+	env := options.Env
+	if env == nil {
+		env = Env{}
+	}
+	runAgent := options.RunAgent
+	if runAgent == nil {
+		runAgent = func(context.Context, appa2a.RunAgentRequest) (appa2a.RunAgentResponse, error) {
+			return appa2a.RunAgentResponse{}, errors.New("agent runner is not configured")
+		}
+	}
+	workspaceRoot := options.WorkspaceRoot
+	if workspaceRoot == "" {
+		workspaceRoot = filepath.Join(".", "workspace")
+	}
+
+	port := envInt(env, "PORT", 3000)
+	host := envString(env, "HOST", "localhost")
+	agentURL := envString(env, "A2A_AGENT_URL", fmt.Sprintf("http://%s:%d/a2a", host, port))
+	token := envString(env, "A2A_AUTH_TOKEN", "")
+
+	service := appa2a.NewService(appa2a.ServiceConfig{
+		AgentURL:       agentURL,
+		RunAgent:       runAgent,
+		WorkspaceRoot:  workspaceRoot,
+		AuthRequired:   token != "",
+		Sandbox:        envString(env, "A2A_SANDBOX", "") == "true",
+		AllowedDomains: parseCSV(envString(env, "A2A_ALLOWED_DOMAINS", "")),
+	})
+
+	app := &App{service: service, token: token}
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /.well-known/agent-card.json", app.handleAgentCard)
+	mux.HandleFunc("POST /a2a", app.handleMessageSend)
+	mux.HandleFunc("GET /docs", app.handleDocs)
+	app.handler = mux
+	return app
+}
+
+func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	a.handler.ServeHTTP(w, r)
+}
+
+func Run(ctx context.Context, stdout, stderr io.Writer, env Env) error {
+	if stderr == nil {
+		stderr = io.Discard
+	}
+	if stdout == nil {
+		stdout = io.Discard
+	}
+	port := envInt(env, "PORT", 3000)
+	addr := ":" + strconv.Itoa(port)
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           NewApp(Options{Env: env}),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		_, _ = fmt.Fprintf(stdout, "A2A server listening on http://localhost:%d\n", port)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+			return
+		}
+		errCh <- nil
+	}()
+
+	select {
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("shutdown a2a server: %w", err)
+		}
+		<-errCh
+		return ctx.Err()
+	case err := <-errCh:
+		return err
+	}
+}
+
+func (a *App) handleAgentCard(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, a.service.AgentCard())
+}
+
+func (a *App) handleMessageSend(w http.ResponseWriter, r *http.Request) {
+	if a.token != "" && r.Header.Get("Authorization") != "Bearer "+a.token {
+		writeJSONRPCError(w, http.StatusUnauthorized, nil, -32001, "Unauthorized")
+		return
+	}
+
+	if !strings.Contains(strings.ToLower(r.Header.Get("Content-Type")), "application/json") {
+		writeJSONRPCError(w, http.StatusUnsupportedMediaType, nil, -32600, "Content-Type must be application/json")
+		return
+	}
+
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+		writeJSONRPCError(w, http.StatusBadRequest, nil, -32700, "Parse error")
+		return
+	}
+
+	id := parseJSONRPCID(raw["id"])
+	version := parseString(raw["jsonrpc"])
+	if version != "2.0" {
+		writeJSONRPCError(w, http.StatusBadRequest, id, -32600, "Invalid Request")
+		return
+	}
+	method := parseString(raw["method"])
+	if method == "" {
+		writeJSONRPCError(w, http.StatusBadRequest, id, -32600, "Invalid Request")
+		return
+	}
+	if method != "message/send" {
+		writeJSONRPCError(w, http.StatusBadRequest, id, -32601, "Method not found")
+		return
+	}
+
+	var params domain.A2AMessageSendParams
+	if err := json.Unmarshal(raw["params"], &params); err != nil ||
+		params.Message.Role != "user" ||
+		params.Message.MessageID == "" ||
+		len(params.Message.Parts) == 0 {
+		writeJSONRPCError(w, http.StatusBadRequest, id, -32602, "Invalid params")
+		return
+	}
+	for _, part := range params.Message.Parts {
+		if part.Kind != "text" {
+			writeJSONRPCError(w, http.StatusBadRequest, id, -32602, "Invalid params")
+			return
+		}
+	}
+
+	message, err := a.service.SendMessage(r.Context(), domain.A2AMessageSendCommand{
+		MessageID: params.Message.MessageID,
+		Parts:     params.Message.Parts,
+	})
+	if err != nil {
+		writeJSONRPCError(w, http.StatusBadRequest, id, -32602, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusOK, domain.A2AJSONRPCSuccess{
+		JSONRPC: "2.0",
+		ID:      id,
+		Result:  message,
+	})
+}
+
+func (a *App) handleDocs(w http.ResponseWriter, _ *http.Request) {
+	spec := openAPIDocument()
+	specJSON, err := json.MarshalIndent(spec, "", "  ")
+	if err != nil {
+		http.Error(w, "failed to render docs", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	_, _ = fmt.Fprintf(w, `<!doctype html>
+<html>
+<head><title>nano-code A2A API</title></head>
+<body>
+<h1>nano-code A2A API</h1>
+<p>Static OpenAPI 3.1 document for the Go A2A endpoints.</p>
+<pre id="openapi">%s</pre>
+</body>
+</html>`, html.EscapeString(string(specJSON)))
+}
+
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
+}
+
+func writeJSONRPCError(w http.ResponseWriter, status int, id any, code int, message string) {
+	writeJSON(w, status, domain.A2AJSONRPCError{
+		JSONRPC: "2.0",
+		ID:      id,
+		Error: domain.A2AJSONRPCErrorObj{
+			Code:    code,
+			Message: message,
+		},
+	})
+}
+
+func parseJSONRPCID(raw json.RawMessage) any {
+	if len(raw) == 0 {
+		return nil
+	}
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return nil
+	}
+	switch id := value.(type) {
+	case string:
+		return id
+	case float64:
+		if id == float64(int64(id)) {
+			return int64(id)
+		}
+		return id
+	case nil:
+		return nil
+	default:
+		return nil
+	}
+}
+
+func parseString(raw json.RawMessage) string {
+	var value string
+	_ = json.Unmarshal(raw, &value)
+	return value
+}
+
+func envString(env Env, key, fallback string) string {
+	if value, ok := env[key]; ok && value != "" {
+		return value
+	}
+	return fallback
+}
+
+func envInt(env Env, key string, fallback int) int {
+	value := envString(env, key, "")
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func parseCSV(value string) []string {
+	if value == "" {
+		return nil
+	}
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			result = append(result, part)
+		}
+	}
+	return result
+}

@@ -16,7 +16,7 @@
 - [x] `internal/domain` に message、tool、usage、LLM、A2A の型を置く。
 - [x] `internal/application/agent` に agent loop を置く。
 - [x] `internal/application/generation` に generation/stream collection を置く。
-- [ ] `internal/application/a2a` に A2AService 相当を置く。
+- [x] `internal/application/a2a` に A2AService 相当を置く。
 - [x] `internal/application/ports` に approval や provider などの境界 interface を置く。
 - [ ] `internal/infrastructure/llm` に OpenAI、Anthropic、Google provider 実装を置く。
 - [ ] `internal/infrastructure/tools` に read/write/edit/exec/git/github/webFetch/A2A tools を置く。
@@ -26,7 +26,7 @@
 - [x] `internal/infrastructure/prompts` に prompt 読み込み処理と markdown prompt を置く。
 - [ ] `internal/infrastructure/logger` に stdout/stderr 分離を意識した logger を置く。
 - [ ] `internal/interfaces/cli` に CLI parsing と runner 呼び出しを置く。
-- [ ] `internal/interfaces/a2a` に HTTP router、controller、JSON-RPC error mapping を置く。
+- [x] `internal/interfaces/a2a` に HTTP router、controller、JSON-RPC error mapping を置く。
 
 ## Phase 0: 現行仕様の棚卸し
 
@@ -114,14 +114,14 @@
 ## Phase 8: A2A server
 
 - [x] `nano-code/src/domain/a2a.ts` の型を Go に移植する。
-- [ ] `A2AService` を移植し、Agent Card と `message/send` の挙動を維持する。
-- [ ] HTTP router を選ぶ。標準 `net/http` で足りるか、OpenAPI/docs 生成の都合で router を導入するか決める。
-- [ ] `GET /.well-known/agent-card.json` を実装する。
-- [ ] `POST /a2a` JSON-RPC 2.0 endpoint を実装する。
-- [ ] Bearer auth を `A2A_AUTH_TOKEN` で有効化する。
-- [ ] `GET /docs` の扱いを決める。Go 版で Swagger UI を継続する場合は OpenAPI 生成方針を決める。
-- [ ] A2A controller/server tests を移植する。
-- [ ] `PORT`、`HOST`、`A2A_AGENT_URL`、`A2A_SANDBOX`、`A2A_ALLOWED_DOMAINS` を維持する。
+- [x] `A2AService` を移植し、Agent Card と `message/send` の挙動を維持する。
+- [x] HTTP router を選ぶ。標準 `net/http` で足りるか、OpenAPI/docs 生成の都合で router を導入するか決める。
+- [x] `GET /.well-known/agent-card.json` を実装する。
+- [x] `POST /a2a` JSON-RPC 2.0 endpoint を実装する。
+- [x] Bearer auth を `A2A_AUTH_TOKEN` で有効化する。
+- [x] `GET /docs` の扱いを決める。Go 版で Swagger UI を継続する場合は OpenAPI 生成方針を決める。
+- [x] A2A controller/server tests を移植する。
+- [x] `PORT`、`HOST`、`A2A_AGENT_URL`、`A2A_SANDBOX`、`A2A_ALLOWED_DOMAINS` を維持する。
 
 ## Phase 9: Remote A2A agent integration
 
