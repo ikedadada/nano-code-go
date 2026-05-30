@@ -1,10 +1,13 @@
-.PHONY: fmt test lint run run-a2a
+.PHONY: fmt test race lint run run-a2a
 
 fmt:
 	gofmt -w ./cmd ./internal
 
 test:
 	go test ./...
+
+race:
+	go test -race ./...
 
 lint:
 	golangci-lint run

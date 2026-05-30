@@ -1,10 +1,10 @@
 # nano-code-go
 
-Go migration workspace for `nano-code`.
+Go implementation of `nano-code`.
 
-The TypeScript implementation in `./nano-code` is the source of truth while
-this repository is migrated. The Go implementation keeps the same layer
-boundaries:
+The previous TypeScript implementation is retained under `./nano-code` as a
+compatibility reference while the migration is finalized. The Go implementation
+keeps the same layer boundaries:
 
 ```text
 interfaces -> application -> domain
@@ -16,13 +16,20 @@ directly on infrastructure adapters.
 
 ## CLI
 
-Target command:
+Run the CLI with:
 
 ```sh
 go run ./cmd/nano-code [options] "Your prompt here"
 ```
 
-Compatibility target from the TypeScript CLI:
+Or build a binary:
+
+```sh
+go build -o bin/nano-code ./cmd/nano-code
+bin/nano-code [options] "Your prompt here"
+```
+
+Options:
 
 - `-y, --yolo`: approve all tool calls.
 - `-v, --verbose`: show debug logs.
@@ -31,23 +38,29 @@ Compatibility target from the TypeScript CLI:
 - `-d, --allowed-domains <domains>`: comma-separated domains allowed for web
   fetch.
 
-The default workspace root remains `./workspace`. Normal command output should
-go to stdout, and logs/diagnostics should go to stderr.
+The default workspace root is `./workspace`. Normal command output goes to
+stdout, and logs/diagnostics go to stderr.
 
 ## A2A Server
 
-Target command:
+Run the A2A server with:
 
 ```sh
 go run ./cmd/nano-code-a2a
 ```
 
-The Go server must keep the TypeScript A2A surface:
+Or build a binary:
+
+```sh
+go build -o bin/nano-code-a2a ./cmd/nano-code-a2a
+bin/nano-code-a2a
+```
+
+The server exposes:
 
 - `GET /.well-known/agent-card.json`: A2A Agent Card discovery.
 - `POST /a2a`: JSON-RPC 2.0 endpoint supporting `message/send`.
-- `GET /docs`: API documentation endpoint, if Swagger UI/OpenAPI generation is
-  retained.
+- `GET /docs`: static API documentation endpoint.
 
 Environment variables:
 
@@ -74,8 +87,8 @@ automatically granted for authenticated requests.
 
 ## Migration Tracking
 
-`TODO.md` is the authoritative migration checklist. Detailed compatibility
-tables are in [docs/migration.md](docs/migration.md).
+`TODO.md` is the migration checklist. Detailed compatibility tables are in
+[docs/migration.md](docs/migration.md).
 
 ## Development
 
@@ -84,10 +97,11 @@ Useful commands:
 ```sh
 make fmt
 make test
+make race
 make lint
 make run
 make run-a2a
 ```
 
-`make test` runs `go test ./...`. `make lint` expects `golangci-lint` to be
-installed.
+`make test` runs `go test ./...`. `make race` runs `go test -race ./...`.
+`make lint` expects `golangci-lint` to be installed.

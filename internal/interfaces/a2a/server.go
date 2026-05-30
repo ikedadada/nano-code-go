@@ -16,6 +16,7 @@ import (
 
 	appa2a "nano-code-go/internal/application/a2a"
 	"nano-code-go/internal/domain"
+	cliiface "nano-code-go/internal/interfaces/cli"
 )
 
 type Env map[string]string
@@ -97,7 +98,7 @@ func Run(ctx context.Context, stdout, stderr io.Writer, env Env) error {
 	addr := ":" + strconv.Itoa(port)
 	server := &http.Server{
 		Addr:              addr,
-		Handler:           NewApp(Options{Env: env}),
+		Handler:           NewApp(Options{Env: env, RunAgent: defaultRunAgent(stderr, env)}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 
@@ -123,6 +124,32 @@ func Run(ctx context.Context, stdout, stderr io.Writer, env Env) error {
 	case err := <-errCh:
 		return err
 	}
+}
+
+func defaultRunAgent(stderr io.Writer, env Env) appa2a.RunAgent {
+	return func(ctx context.Context, request appa2a.RunAgentRequest) (appa2a.RunAgentResponse, error) {
+		result, err := cliiface.RunAgentWithIO(ctx, cliiface.RunAgentRequest{
+			Prompt:         request.Prompt,
+			IssueDriven:    request.IssueDriven,
+			Streaming:      request.Streaming,
+			Yolo:           request.Yolo,
+			Sandbox:        request.Sandbox,
+			AllowedDomains: request.AllowedDomains,
+			WorkspaceRoot:  request.WorkspaceRoot,
+		}, strings.NewReader(""), io.Discard, stderr, cliEnv(env))
+		if err != nil {
+			return appa2a.RunAgentResponse{}, err
+		}
+		return appa2a.RunAgentResponse{Text: result.Text}, nil
+	}
+}
+
+func cliEnv(env Env) cliiface.Env {
+	result := make(cliiface.Env, len(env))
+	for key, value := range env {
+		result[key] = value
+	}
+	return result
 }
 
 func (a *App) handleAgentCard(w http.ResponseWriter, _ *http.Request) {

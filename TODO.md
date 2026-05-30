@@ -135,19 +135,19 @@
 ## Phase 10: テスト、互換性、品質
 
 - [ ] 既存 TypeScript テストと同等の Go test coverage を揃える。
-- [ ] `go test ./...` を必須検証にする。
-- [ ] `go test -race ./...` を concurrency を含む package で実行する。
+- [x] `go test ./...` を必須検証にする。
+- [x] `go test -race ./...` を concurrency を含む package で実行する。
 - [ ] `golangci-lint run` を通す。
 - [ ] provider 変換の golden test を追加し、tool schema と message 変換の regressions を防ぐ。
 - [ ] CLI smoke test を追加する: yolo + fake model + fake tool。
-- [ ] A2A smoke test を追加する: agent card fetch と message/send。
+- [x] A2A smoke test を追加する: agent card fetch と message/send。
 - [ ] network/API key が必要な integration test は build tag または env guard で通常 test から分離する。
 
 ## Phase 11: 移行完了作業
 
-- [ ] Go 版 README を更新し、Node/Bun 前提の手順を Go 手順に置き換える。
-- [ ] `bun run agent` 相当の `go run ./cmd/nano-code` または binary 実行例を記載する。
-- [ ] `bun run a2a` 相当の `go run ./cmd/nano-code-a2a` または binary 実行例を記載する。
+- [x] Go 版 README を更新し、Node/Bun 前提の手順を Go 手順に置き換える。
+- [x] `bun run agent` 相当の `go run ./cmd/nano-code` または binary 実行例を記載する。
+- [x] `bun run a2a` 相当の `go run ./cmd/nano-code-a2a` または binary 実行例を記載する。
 - [ ] Node 版を残す場合は `nano-code-ts` などに rename するか、deprecated と明記する。
 - [ ] Go 版が main 実装になった後、不要な TypeScript dependency と Bun 設定を削除する。
 - [ ] release build 方針を決める。必要なら GoReleaser を追加する。
@@ -156,8 +156,8 @@
 ## 完了条件
 
 - [ ] CLI で既存と同じ prompt 実行、tool call、approval、streaming が動く。
-- [ ] A2A server が Agent Card、auth、`message/send` を既存互換で提供する。
-- [ ] OpenAI、Anthropic、Google の provider factory が既存 env var で動く。
-- [ ] local tools と remote A2A tools の tool name/schema が既存互換である。
+- [x] A2A server が Agent Card、auth、`message/send` を既存互換で提供する。
+- [x] OpenAI、Anthropic、Google の provider factory が既存 env var で動く。
+- [x] local tools と remote A2A tools の tool name/schema が既存互換である。
 - [ ] `go test ./...` と lint が通る。
-- [ ] README の利用手順が Go 版だけで完結している。
+- [x] README の利用手順が Go 版だけで完結している。

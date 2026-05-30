@@ -25,6 +25,17 @@ func runAgentWithIO(
 	stderr io.Writer,
 	env Env,
 ) (RunAgentResponse, error) {
+	return RunAgentWithIO(ctx, request, stdin, stdout, stderr, env)
+}
+
+func RunAgentWithIO(
+	ctx context.Context,
+	request RunAgentRequest,
+	stdin io.Reader,
+	stdout io.Writer,
+	stderr io.Writer,
+	env Env,
+) (RunAgentResponse, error) {
 	cfg := config.Default()
 	cfg.Sandbox = request.Sandbox
 	cfg = cfg.WithAllowedDomains(request.AllowedDomains)
