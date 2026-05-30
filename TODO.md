@@ -21,7 +21,7 @@
 - [ ] `internal/infrastructure/llm` に OpenAI、Anthropic、Google provider 実装を置く。
 - [ ] `internal/infrastructure/tools` に read/write/edit/exec/git/github/webFetch/A2A tools を置く。
 - [ ] `internal/infrastructure/process` に sandbox 実装を置く。
-- [ ] `internal/infrastructure/approval` に対話 approval 実装を置く。
+- [x] `internal/infrastructure/approval` に対話 approval 実装を置く。
 - [ ] `internal/infrastructure/a2a` に A2A client、agent registry、remote-agent tool 生成を置く。
 - [x] `internal/infrastructure/prompts` に prompt 読み込み処理と markdown prompt を置く。
 - [ ] `internal/infrastructure/logger` に stdout/stderr 分離を意識した logger を置く。
@@ -97,9 +97,9 @@
 - [ ] `nano-code/src/infrastructure/process/Sandbox.ts` の挙動を調査し、Go で同等の Linux sandbox を実装する。
 - [ ] sandbox 有効時の env、cwd、network deny、exit code/stdout/stderr の扱いを揃える。
 - [ ] Linux 以外では sandbox 未対応を明示するか、既存と同じ fallback にするか決める。
-- [ ] `readlineApproval` 相当を Go で実装する。
-- [ ] yolo mode では approval を常に許可する。
-- [ ] approval prompt のテストを追加する。
+- [x] `readlineApproval` 相当を Go で実装する。
+- [x] yolo mode では approval を常に許可する。
+- [x] approval prompt のテストを追加する。
 
 ## Phase 7: CLI
 
