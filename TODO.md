@@ -22,7 +22,7 @@
 - [ ] `internal/infrastructure/tools` に read/write/edit/exec/git/github/webFetch/A2A tools を置く。
 - [ ] `internal/infrastructure/process` に sandbox 実装を置く。
 - [x] `internal/infrastructure/approval` に対話 approval 実装を置く。
-- [ ] `internal/infrastructure/a2a` に A2A client、agent registry、remote-agent tool 生成を置く。
+- [x] `internal/infrastructure/a2a` に A2A client、agent registry、remote-agent tool 生成を置く。
 - [x] `internal/infrastructure/prompts` に prompt 読み込み処理と markdown prompt を置く。
 - [ ] `internal/infrastructure/logger` に stdout/stderr 分離を意識した logger を置く。
 - [ ] `internal/interfaces/cli` に CLI parsing と runner 呼び出しを置く。
@@ -125,12 +125,12 @@
 
 ## Phase 9: Remote A2A agent integration
 
-- [ ] `agents.json` を Go 側に移す。
-- [ ] `loadA2AAgentSources` を移植する。
-- [ ] `A2AClient` を移植し、Agent Card fetch と JSON-RPC invocation を実装する。
-- [ ] `A2AAgentRegistry.discover` を移植し、起動時に失敗した agent を skip する挙動を維持する。
-- [ ] `createA2ATools` を移植し、remote agent を tool として公開する。
-- [ ] A2A client/registry/tool 生成のテストを移植する。
+- [x] `agents.json` を Go 側に移す。
+- [x] `loadA2AAgentSources` を移植する。
+- [x] `A2AClient` を移植し、Agent Card fetch と JSON-RPC invocation を実装する。
+- [x] `A2AAgentRegistry.discover` を移植し、起動時に失敗した agent を skip する挙動を維持する。
+- [x] `createA2ATools` を移植し、remote agent を tool として公開する。
+- [x] A2A client/registry/tool 生成のテストを移植する。
 
 ## Phase 10: テスト、互換性、品質
 

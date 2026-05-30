@@ -1,0 +1,9 @@
+{
+  "agents": [
+    {
+      "id": "pirate",
+      "agentCardUrl": "http://127.0.0.1:8082/.well-known/agent-card.json",
+      "endpointUrl": "http://127.0.0.1:8082/invoke"
+    }
+  ]
+}
