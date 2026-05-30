@@ -23,7 +23,7 @@
 - [ ] `internal/infrastructure/process` に sandbox 実装を置く。
 - [ ] `internal/infrastructure/approval` に対話 approval 実装を置く。
 - [ ] `internal/infrastructure/a2a` に A2A client、agent registry、remote-agent tool 生成を置く。
-- [ ] `internal/infrastructure/prompts` に prompt 読み込み処理と markdown prompt を置く。
+- [x] `internal/infrastructure/prompts` に prompt 読み込み処理と markdown prompt を置く。
 - [ ] `internal/infrastructure/logger` に stdout/stderr 分離を意識した logger を置く。
 - [ ] `internal/interfaces/cli` に CLI parsing と runner 呼び出しを置く。
 - [ ] `internal/interfaces/a2a` に HTTP router、controller、JSON-RPC error mapping を置く。
@@ -62,12 +62,12 @@
 
 ## Phase 3: Prompt と設定
 
-- [ ] `nano-code/src/config.ts` 相当の default config を Go で定義する。
-- [ ] `baseInstructions.md` と `issueInstructions.md` を Go 側に移す。
-- [ ] `loadInstructions` を移植し、workspace の `AGENTS.md` 読み込み仕様を維持する。
+- [x] `nano-code/src/config.ts` 相当の default config を Go で定義する。
+- [x] `baseInstructions.md` と `issueInstructions.md` を Go 側に移す。
+- [x] `loadInstructions` を移植し、workspace の `AGENTS.md` 読み込み仕様を維持する。
 - [ ] `ISSUE_BODY`/`ISSUE_TEXT` による issue-driven prompt を CLI 側で維持する。
-- [ ] `allowedDomains` の default と CLI/A2A からの追加処理を整理する。
-- [ ] prompt loader のテストを移植する。
+- [x] `allowedDomains` の default と CLI/A2A からの追加処理を整理する。
+- [x] prompt loader のテストを移植する。
 
 ## Phase 4: LLM providers
 
