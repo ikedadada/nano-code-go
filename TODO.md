@@ -25,7 +25,7 @@
 - [x] `internal/infrastructure/a2a` に A2A client、agent registry、remote-agent tool 生成を置く。
 - [x] `internal/infrastructure/prompts` に prompt 読み込み処理と markdown prompt を置く。
 - [x] `internal/infrastructure/logger` に stdout/stderr 分離を意識した logger を置く。
-- [ ] `internal/interfaces/cli` に CLI parsing と runner 呼び出しを置く。
+- [x] `internal/interfaces/cli` に CLI parsing と runner 呼び出しを置く。
 - [x] `internal/interfaces/a2a` に HTTP router、controller、JSON-RPC error mapping を置く。
 
 ## Phase 0: 現行仕様の棚卸し
@@ -65,7 +65,7 @@
 - [x] `nano-code/src/config.ts` 相当の default config を Go で定義する。
 - [x] `baseInstructions.md` と `issueInstructions.md` を Go 側に移す。
 - [x] `loadInstructions` を移植し、workspace の `AGENTS.md` 読み込み仕様を維持する。
-- [ ] `ISSUE_BODY`/`ISSUE_TEXT` による issue-driven prompt を CLI 側で維持する。
+- [x] `ISSUE_BODY`/`ISSUE_TEXT` による issue-driven prompt を CLI 側で維持する。
 - [x] `allowedDomains` の default と CLI/A2A からの追加処理を整理する。
 - [x] prompt loader のテストを移植する。
 
@@ -103,13 +103,13 @@
 
 ## Phase 7: CLI
 
-- [ ] CLI library を決める。基本方針は Cobra を使い、設定が増える場合は Viper を追加する。
-- [ ] `nano-code/src/interfaces/cli/main.ts` の option と positional prompt を移植する。
-- [ ] prompt 未指定時は usage error として exit code を分ける。
-- [ ] `--verbose` または `LOG_LEVEL=debug` で debug log を出す。
-- [ ] `workspaceRoot` は現行同様 `./workspace` を default にする。
-- [ ] signal handling を `signal.NotifyContext` で実装し、agent/provider/tool に cancellation を伝播する。
-- [ ] CLI test を追加し、引数 parsing、env issue prompt、allowed domains、error path を検証する。
+- [x] CLI library を決める。単一コマンドのため標準 `flag` を使い、設定が増える場合は Cobra/Viper を検討する。
+- [x] `nano-code/src/interfaces/cli/main.ts` の option と positional prompt を移植する。
+- [x] prompt 未指定時は usage error として exit code を分ける。
+- [x] `--verbose` または `LOG_LEVEL=debug` で debug log を出す。
+- [x] `workspaceRoot` は現行同様 `./workspace` を default にする。
+- [x] signal handling を `signal.NotifyContext` で実装し、agent/provider/tool に cancellation を伝播する。
+- [x] CLI test を追加し、引数 parsing、env issue prompt、allowed domains、error path を検証する。
 
 ## Phase 8: A2A server
 
