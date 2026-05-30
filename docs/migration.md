@@ -80,9 +80,10 @@ Important behavior:
 - `execCommand` validates path-like arguments against `./workspace`, uses a
   30 second timeout, and truncates stdout/stderr to 2024 characters.
 - GitHub and git tools shell out through `execCommand`.
-- `webFetch` restricts target domains to the configured allowlist and rejects
-  redirects. The current TypeScript implementation does not enforce a response
-  size limit, despite the TODO item mentioning one.
+- `webFetch` restricts target domains to the configured allowlist, rejects
+  redirects, and the Go port enforces a response size limit to satisfy the
+  migration TODO. The current TypeScript implementation does not enforce that
+  limit.
 
 ## TypeScript Test Inventory
 

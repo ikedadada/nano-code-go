@@ -82,13 +82,13 @@
 
 ## Phase 5: Local tools
 
-- [ ] `readFile` を移植し、workspace 外 path を拒否する。
-- [ ] `writeFile` を移植し、workspace 外 path を拒否する。
-- [ ] `editFile` を移植し、置換失敗や複数一致などの既存挙動を確認する。
+- [x] `readFile` を移植し、workspace 外 path を拒否する。
+- [x] `writeFile` を移植し、workspace 外 path を拒否する。
+- [x] `editFile` を移植し、置換失敗や複数一致などの既存挙動を確認する。
 - [ ] `execCommand` を移植し、allowlist、危険文字拒否、argument path 検証、timeout、出力 truncate を維持する。
 - [ ] `git` tools を移植する: branch 作成、commit、push。
 - [ ] `github` tools を移植する: PR 作成、issue comment 作成。
-- [ ] `webFetch` を移植し、allowed domain 制限と response size 制限を維持する。
+- [x] `webFetch` を移植し、allowed domain 制限と response size 制限を維持する。
 - [ ] `createTools` の tool 登録順と tool name を既存と揃える。
 - [ ] 各 tool の Go テストを既存 `*.test.ts` に対応させる。
 
