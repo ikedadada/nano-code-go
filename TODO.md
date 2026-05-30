@@ -24,7 +24,7 @@
 - [x] `internal/infrastructure/approval` に対話 approval 実装を置く。
 - [x] `internal/infrastructure/a2a` に A2A client、agent registry、remote-agent tool 生成を置く。
 - [x] `internal/infrastructure/prompts` に prompt 読み込み処理と markdown prompt を置く。
-- [ ] `internal/infrastructure/logger` に stdout/stderr 分離を意識した logger を置く。
+- [x] `internal/infrastructure/logger` に stdout/stderr 分離を意識した logger を置く。
 - [ ] `internal/interfaces/cli` に CLI parsing と runner 呼び出しを置く。
 - [x] `internal/interfaces/a2a` に HTTP router、controller、JSON-RPC error mapping を置く。
 
