@@ -13,11 +13,11 @@
 - [x] `go.mod` を作成し、module path と Go version を決める。
 - [x] `cmd/nano-code/main.go` を CLI entrypoint として作成する。
 - [x] `cmd/nano-code-a2a/main.go` を A2A server entrypoint として作成する。
-- [ ] `internal/domain` に message、tool、usage、LLM、A2A の型を置く。
-- [ ] `internal/application/agent` に agent loop を置く。
-- [ ] `internal/application/generation` に generation/stream collection を置く。
+- [x] `internal/domain` に message、tool、usage、LLM、A2A の型を置く。
+- [x] `internal/application/agent` に agent loop を置く。
+- [x] `internal/application/generation` に generation/stream collection を置く。
 - [ ] `internal/application/a2a` に A2AService 相当を置く。
-- [ ] `internal/application/ports` に approval や provider などの境界 interface を置く。
+- [x] `internal/application/ports` に approval や provider などの境界 interface を置く。
 - [ ] `internal/infrastructure/llm` に OpenAI、Anthropic、Google provider 実装を置く。
 - [ ] `internal/infrastructure/tools` に read/write/edit/exec/git/github/webFetch/A2A tools を置く。
 - [ ] `internal/infrastructure/process` に sandbox 実装を置く。
@@ -49,16 +49,16 @@
 
 ## Phase 2: Domain と application core
 
-- [ ] `nano-code/src/domain/types.ts` を `internal/domain` の Go 型に移植する。
-- [ ] `Tool` を interface または struct+func として定義し、JSON Schema parameters を保持できるようにする。
-- [ ] `Message` は role 別 struct か単一 struct で表現し、provider 変換時に欠落が起きないようにする。
-- [ ] `LanguageModel` interface を `Generate` と `Stream` に分けるか、現行同様に単一 interface にするか決める。
-- [ ] `LLMApiError` 相当を Go error として実装し、provider、status、code、raw body を保持する。
-- [ ] `nano-code/src/application/generation/generateText.ts` を移植する。
-- [ ] streaming chunk を集約する `CollectStreamResult` を実装する。
-- [ ] `nano-code/src/application/agent/Agent.ts` の agent loop を移植する。
-- [ ] tool approval、tool missing、tool error、max steps、context compression の挙動を既存と揃える。
-- [ ] `Agent` の unit test を追加し、tool call 実行、拒否、max step、streaming 集約を検証する。
+- [x] `nano-code/src/domain/types.ts` を `internal/domain` の Go 型に移植する。
+- [x] `Tool` を interface または struct+func として定義し、JSON Schema parameters を保持できるようにする。
+- [x] `Message` は role 別 struct か単一 struct で表現し、provider 変換時に欠落が起きないようにする。
+- [x] `LanguageModel` interface を `Generate` と `Stream` に分けるか、現行同様に単一 interface にするか決める。
+- [x] `LLMApiError` 相当を Go error として実装し、provider、status、code、raw body を保持する。
+- [x] `nano-code/src/application/generation/generateText.ts` を移植する。
+- [x] streaming chunk を集約する `CollectStreamResult` を実装する。
+- [x] `nano-code/src/application/agent/Agent.ts` の agent loop を移植する。
+- [x] tool approval、tool missing、tool error、max steps、context compression の挙動を既存と揃える。
+- [x] `Agent` の unit test を追加し、tool call 実行、拒否、max step、streaming 集約を検証する。
 
 ## Phase 3: Prompt と設定
 
@@ -113,7 +113,7 @@
 
 ## Phase 8: A2A server
 
-- [ ] `nano-code/src/domain/a2a.ts` の型を Go に移植する。
+- [x] `nano-code/src/domain/a2a.ts` の型を Go に移植する。
 - [ ] `A2AService` を移植し、Agent Card と `message/send` の挙動を維持する。
 - [ ] HTTP router を選ぶ。標準 `net/http` で足りるか、OpenAPI/docs 生成の都合で router を導入するか決める。
 - [ ] `GET /.well-known/agent-card.json` を実装する。
