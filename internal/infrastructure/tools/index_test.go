@@ -19,7 +19,18 @@ func TestCreateToolsRegistersImplementedToolsInOrder(t *testing.T) {
 		names = append(names, tool.Name)
 	}
 
-	want := []string{"readFile", "writeFile", "editFile", "webFetch"}
+	want := []string{
+		"readFile",
+		"writeFile",
+		"editFile",
+		"execCommand",
+		"createBranch",
+		"commit",
+		"pushBranch",
+		"createPullRequest",
+		"createIssueComment",
+		"webFetch",
+	}
 	for i, name := range want {
 		if len(names) <= i || names[i] != name {
 			t.Fatalf("tool order = %#v, want prefix %#v", names, want)

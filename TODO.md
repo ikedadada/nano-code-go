@@ -19,7 +19,7 @@
 - [x] `internal/application/a2a` に A2AService 相当を置く。
 - [x] `internal/application/ports` に approval や provider などの境界 interface を置く。
 - [ ] `internal/infrastructure/llm` に OpenAI、Anthropic、Google provider 実装を置く。
-- [ ] `internal/infrastructure/tools` に read/write/edit/exec/git/github/webFetch/A2A tools を置く。
+- [x] `internal/infrastructure/tools` に read/write/edit/exec/git/github/webFetch/A2A tools を置く。
 - [ ] `internal/infrastructure/process` に sandbox 実装を置く。
 - [x] `internal/infrastructure/approval` に対話 approval 実装を置く。
 - [x] `internal/infrastructure/a2a` に A2A client、agent registry、remote-agent tool 生成を置く。
@@ -85,12 +85,12 @@
 - [x] `readFile` を移植し、workspace 外 path を拒否する。
 - [x] `writeFile` を移植し、workspace 外 path を拒否する。
 - [x] `editFile` を移植し、置換失敗や複数一致などの既存挙動を確認する。
-- [ ] `execCommand` を移植し、allowlist、危険文字拒否、argument path 検証、timeout、出力 truncate を維持する。
-- [ ] `git` tools を移植する: branch 作成、commit、push。
-- [ ] `github` tools を移植する: PR 作成、issue comment 作成。
+- [x] `execCommand` を移植し、allowlist、危険文字拒否、argument path 検証、timeout、出力 truncate を維持する。
+- [x] `git` tools を移植する: branch 作成、commit、push。
+- [x] `github` tools を移植する: PR 作成、issue comment 作成。
 - [x] `webFetch` を移植し、allowed domain 制限と response size 制限を維持する。
-- [ ] `createTools` の tool 登録順と tool name を既存と揃える。
-- [ ] 各 tool の Go テストを既存 `*.test.ts` に対応させる。
+- [x] `createTools` の tool 登録順と tool name を既存と揃える。
+- [x] 各 tool の Go テストを既存 `*.test.ts` に対応させる。
 
 ## Phase 6: Sandbox と approval
 

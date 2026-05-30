@@ -16,6 +16,7 @@ type Options struct {
 	WorkspaceRoot  string
 	AllowedDomains []string
 	HTTPClient     HTTPDoer
+	CommandRunner  CommandRunner
 }
 
 func ReadFile(workspaceRoot string) domain.Tool {
