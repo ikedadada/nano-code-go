@@ -18,7 +18,7 @@
 - [x] `internal/application/generation` に generation/stream collection を置く。
 - [x] `internal/application/a2a` に A2AService 相当を置く。
 - [x] `internal/application/ports` に approval や provider などの境界 interface を置く。
-- [ ] `internal/infrastructure/llm` に OpenAI、Anthropic、Google provider 実装を置く。
+- [x] `internal/infrastructure/llm` に OpenAI、Anthropic、Google provider 実装を置く。
 - [x] `internal/infrastructure/tools` に read/write/edit/exec/git/github/webFetch/A2A tools を置く。
 - [ ] `internal/infrastructure/process` に sandbox 実装を置く。
 - [x] `internal/infrastructure/approval` に対話 approval 実装を置く。
@@ -71,14 +71,14 @@
 
 ## Phase 4: LLM providers
 
-- [ ] provider factory を移植し、`LLM_PROVIDER` と `LLM_MODEL` 必須チェックを維持する。
-- [ ] `LLM_API_KEY` を provider 固有 env にフォールバック設定する挙動を維持する。
-- [ ] OpenAI provider を実装する。
-- [ ] Anthropic provider を実装する。
-- [ ] Google provider を実装する。
-- [ ] 各 provider で messages、tools、tool calls、usage、finish reason の変換をテストする。
-- [ ] streaming 対応の実装可否を provider ごとに確認し、未対応の場合は明示 error にする。
-- [ ] provider テストは外部 API に依存しない変換/HTTP mock 中心にする。
+- [x] provider factory を移植し、`LLM_PROVIDER` と `LLM_MODEL` 必須チェックを維持する。
+- [x] `LLM_API_KEY` を provider 固有 env にフォールバック設定する挙動を維持する。
+- [x] OpenAI provider を実装する。
+- [x] Anthropic provider を実装する。
+- [x] Google provider を実装する。
+- [x] 各 provider で messages、tools、tool calls、usage、finish reason の変換をテストする。
+- [x] streaming 対応の実装可否を provider ごとに確認し、未対応の場合は明示 error にする。
+- [x] provider テストは外部 API に依存しない変換/HTTP mock 中心にする。
 
 ## Phase 5: Local tools
 
