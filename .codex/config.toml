@@ -1,0 +1,11 @@
+approval_policy = "on-request"
+default_permissions = "local"
+
+[permissions.local.filesystem]
+glob_scan_max_depth = 3
+
+[permissions.local.filesystem.":workspace_roots"]
+
+"." = "write"
+"**/.env" = "deny"
+"**/.env.*" = "deny"
