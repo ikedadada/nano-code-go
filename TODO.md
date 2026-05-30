@@ -30,12 +30,12 @@
 
 ## Phase 0: 現行仕様の棚卸し
 
-- [ ] `nano-code/README.md` の CLI、A2A、env var、remote A2A agent の仕様を Go 版 README の初期仕様として転記する。
-- [ ] `nano-code/package.json` の scripts を Go 版の `make` task または `go test`/`go run` コマンドへ対応付ける。
-- [ ] 既存 TypeScript テスト一覧を移植トラッキング表にする。
-- [ ] CLI option 互換表を作る: `--yolo`、`--verbose`、`--sandbox`、`--streaming`、`--allowed-domains`。
-- [ ] 環境変数互換表を作る: `LLM_PROVIDER`、`LLM_MODEL`、`LLM_API_KEY`、provider 固有 API key、A2A 系 env。
-- [ ] 既存の tool schema と tool name を一覧化し、Go 版で名前を変えない方針を確認する。
+- [x] `nano-code/README.md` の CLI、A2A、env var、remote A2A agent の仕様を Go 版 README の初期仕様として転記する。
+- [x] `nano-code/package.json` の scripts を Go 版の `make` task または `go test`/`go run` コマンドへ対応付ける。
+- [x] 既存 TypeScript テスト一覧を移植トラッキング表にする。
+- [x] CLI option 互換表を作る: `--yolo`、`--verbose`、`--sandbox`、`--streaming`、`--allowed-domains`。
+- [x] 環境変数互換表を作る: `LLM_PROVIDER`、`LLM_MODEL`、`LLM_API_KEY`、provider 固有 API key、A2A 系 env。
+- [x] 既存の tool schema と tool name を一覧化し、Go 版で名前を変えない方針を確認する。
 
 ## Phase 1: Go プロジェクト土台
 
