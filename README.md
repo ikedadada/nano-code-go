@@ -76,3 +76,18 @@ automatically granted for authenticated requests.
 
 `TODO.md` is the authoritative migration checklist. Detailed compatibility
 tables are in [docs/migration.md](docs/migration.md).
+
+## Development
+
+Useful commands:
+
+```sh
+make fmt
+make test
+make lint
+make run
+make run-a2a
+```
+
+`make test` runs `go test ./...`. `make lint` expects `golangci-lint` to be
+installed.

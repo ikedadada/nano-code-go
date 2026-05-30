@@ -1,1 +1,12 @@
-nano-code/
+/nano-code/
+
+# Go build/test outputs
+/nano-code-go
+/nano-code-a2a
+*.test
+coverage.out
+coverage.html
+
+# Local temporary files
+tmp/
+*.tmp

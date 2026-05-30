@@ -10,9 +10,9 @@
 
 ## 想定する Go ディレクトリ構成
 
-- [ ] `go.mod` を作成し、module path と Go version を決める。
-- [ ] `cmd/nano-code/main.go` を CLI entrypoint として作成する。
-- [ ] `cmd/nano-code-a2a/main.go` を A2A server entrypoint として作成する。
+- [x] `go.mod` を作成し、module path と Go version を決める。
+- [x] `cmd/nano-code/main.go` を CLI entrypoint として作成する。
+- [x] `cmd/nano-code-a2a/main.go` を A2A server entrypoint として作成する。
 - [ ] `internal/domain` に message、tool、usage、LLM、A2A の型を置く。
 - [ ] `internal/application/agent` に agent loop を置く。
 - [ ] `internal/application/generation` に generation/stream collection を置く。
@@ -39,13 +39,13 @@
 
 ## Phase 1: Go プロジェクト土台
 
-- [ ] `go mod init` を実行する。
-- [ ] `Makefile` を追加する: `fmt`、`test`、`lint`、`run`、`run-a2a`。
-- [ ] `.gitignore` を Go binary、coverage、temporary file 向けに追加する。
-- [ ] `golangci-lint` 設定を追加する。
-- [ ] `go test ./...` が空実装でも通る状態を作る。
-- [ ] `context.Context` を主要 public/internal 境界の第一引数にする方針を統一する。
-- [ ] stdout は通常出力、stderr はログ/診断に限定する方針を README に明記する。
+- [x] `go mod init` を実行する。
+- [x] `Makefile` を追加する: `fmt`、`test`、`lint`、`run`、`run-a2a`。
+- [x] `.gitignore` を Go binary、coverage、temporary file 向けに追加する。
+- [x] `golangci-lint` 設定を追加する。
+- [x] `go test ./...` が空実装でも通る状態を作る。
+- [x] `context.Context` を主要 public/internal 境界の第一引数にする方針を統一する。
+- [x] stdout は通常出力、stderr はログ/診断に限定する方針を README に明記する。
 
 ## Phase 2: Domain と application core
 
