@@ -12,6 +12,7 @@ import (
 	"nano-code-go/internal/infrastructure/a2a"
 	"nano-code-go/internal/infrastructure/approval"
 	"nano-code-go/internal/infrastructure/llm/providers"
+	"nano-code-go/internal/infrastructure/process"
 	"nano-code-go/internal/infrastructure/prompts"
 	"nano-code-go/internal/infrastructure/tools"
 )
@@ -50,6 +51,10 @@ func runAgentWithIO(
 	if request.Yolo {
 		approvalPolicy = approval.AllowAll
 	}
+	var commandRunner tools.CommandRunner
+	if request.Sandbox {
+		commandRunner = process.NewSandboxRunner(safeSandboxEnv(env), false, nil)
+	}
 
 	nanoAgent := agent.New(agent.Config{
 		Name:         "nano-code",
@@ -58,6 +63,7 @@ func runAgentWithIO(
 		Tools: tools.CreateTools(tools.Options{
 			WorkspaceRoot:  request.WorkspaceRoot,
 			AllowedDomains: cfg.AllowedDomains,
+			CommandRunner:  commandRunner,
 		}, registry),
 		MaxSteps:     20,
 		UseStreaming: request.Streaming,
@@ -84,6 +90,19 @@ func stringEnv(env Env) map[string]string {
 	result := make(map[string]string, len(env))
 	for key, value := range env {
 		result[key] = value
+	}
+	return result
+}
+
+func safeSandboxEnv(env Env) map[string]string {
+	result := map[string]string{}
+	if env["PATH"] != "" {
+		result["PATH"] = env["PATH"]
+	}
+	if env["LANG"] != "" {
+		result["LANG"] = env["LANG"]
+	} else {
+		result["LANG"] = "C.UTF-8"
 	}
 	return result
 }
