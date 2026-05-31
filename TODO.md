@@ -134,7 +134,7 @@
 
 ## Phase 10: テスト、互換性、品質
 
-- [ ] 既存 TypeScript テストと同等の Go test coverage を揃える。
+- [x] 既存 TypeScript テストと同等の Go test coverage を揃える。
 - [x] `go test ./...` を必須検証にする。
 - [x] `go test -race ./...` を concurrency を含む package で実行する。
 - [x] Go 標準チェックを通す: `gofmt`、`go vet`。

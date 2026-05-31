@@ -9,7 +9,7 @@ preserve.
 | --- | --- | --- |
 | `agent` | `bun run src/bin/cli.ts` | `go run ./cmd/nano-code` |
 | `a2a` | `bun run src/bin/a2a.ts` | `go run ./cmd/nano-code-a2a` |
-| `check` | `biome check .` | `golangci-lint run` |
+| `check` | `biome check .` | `make lint` (`gofmt -l` + `go vet ./...`) |
 | `typecheck` | `tsc --noEmit` | `go test ./...` compile step |
 | `test` | `bun test` | `go test ./...` |
 | `ci` | `bun run check && bun run typecheck && bun run test` | `make lint test` |
@@ -120,3 +120,17 @@ Important behavior:
 | `src/infrastructure/llm/providers/openai.test.ts` | OpenAI provider tests |
 | `src/infrastructure/llm/providers/modelFactory.test.ts` | provider factory tests |
 | `src/infrastructure/llm/providers/google.test.ts` | Google provider tests |
+
+Coverage status:
+
+- Domain, generation, agent, A2A service, CLI, A2A HTTP, approval, sandbox,
+  prompt loading, logger, local tools, remote A2A integration, and all provider
+  factory/provider conversion tests have corresponding Go `*_test.go` files.
+- Provider streaming is covered by HTTP stream mock tests in
+  `internal/infrastructure/llm/providers/providers_test.go`.
+- Network/API-key provider checks are isolated behind the `integration` build
+  tag in `internal/infrastructure/llm/providers/integration_test.go`, so the
+  default `go test ./...` remains deterministic.
+- The TypeScript `helper.test.ts` `parseJsonObject` behavior is covered by
+  `internal/infrastructure/llm/providers/json_test.go`; `isErrnoException` is a
+  Node-specific type guard with no Go runtime equivalent.
