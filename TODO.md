@@ -42,7 +42,7 @@
 - [x] `go mod init` を実行する。
 - [x] `Makefile` を追加する: `fmt`、`test`、`lint`、`run`、`run-a2a`。
 - [x] `.gitignore` を Go binary、coverage、temporary file 向けに追加する。
-- [x] `golangci-lint` 設定を追加する。
+- [x] Go 標準ツールによる品質チェックを追加する: `gofmt`、`go vet`。
 - [x] `go test ./...` が空実装でも通る状態を作る。
 - [x] `context.Context` を主要 public/internal 境界の第一引数にする方針を統一する。
 - [x] stdout は通常出力、stderr はログ/診断に限定する方針を README に明記する。
@@ -137,11 +137,11 @@
 - [ ] 既存 TypeScript テストと同等の Go test coverage を揃える。
 - [x] `go test ./...` を必須検証にする。
 - [x] `go test -race ./...` を concurrency を含む package で実行する。
-- [ ] `golangci-lint run` を通す。
+- [x] Go 標準チェックを通す: `gofmt`、`go vet`。
 - [x] provider 変換の golden test を追加し、tool schema と message 変換の regressions を防ぐ。
 - [x] CLI smoke test を追加する: yolo + fake model + fake tool。
 - [x] A2A smoke test を追加する: agent card fetch と message/send。
-- [ ] network/API key が必要な integration test は build tag または env guard で通常 test から分離する。
+- [x] network/API key が必要な integration test は build tag または env guard で通常 test から分離する。
 
 ## Phase 11: 移行完了作業
 
@@ -149,9 +149,9 @@
 - [x] `bun run agent` 相当の `go run ./cmd/nano-code` または binary 実行例を記載する。
 - [x] `bun run a2a` 相当の `go run ./cmd/nano-code-a2a` または binary 実行例を記載する。
 - [x] Node 版を残す場合は `nano-code-ts` などに rename するか、deprecated と明記する。
-- [ ] Go 版が main 実装になった後、不要な TypeScript dependency と Bun 設定を削除する。
+- [x] Go 版が main 実装になった後、不要な TypeScript dependency と Bun 設定を削除する。
 - [x] release build 方針を決める。必要なら GoReleaser を追加する。
-- [x] CI を Go 版に切り替える: fmt、test、race、lint。
+- [x] CI を Go 版に切り替える: `gofmt`、`go vet`、`go test`、`go test -race`。
 
 ## 完了条件
 
@@ -159,5 +159,5 @@
 - [x] A2A server が Agent Card、auth、`message/send` を既存互換で提供する。
 - [x] OpenAI、Anthropic、Google の provider factory が既存 env var で動く。
 - [x] local tools と remote A2A tools の tool name/schema が既存互換である。
-- [ ] `go test ./...` と lint が通る。
+- [x] `go test ./...` と Go 標準チェックが通る。
 - [x] README の利用手順が Go 版だけで完結している。

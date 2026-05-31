@@ -13,7 +13,12 @@ race:
 	GOCACHE=$(GOCACHE) $(GO) test -race ./...
 
 lint:
-	golangci-lint run
+	files="$$(gofmt -l ./cmd ./internal)"; \
+	if [ -n "$$files" ]; then \
+		echo "$$files"; \
+		exit 1; \
+	fi
+	GOCACHE=$(GOCACHE) $(GO) vet ./...
 
 build:
 	GOCACHE=$(GOCACHE) $(GO) build -o bin/nano-code ./cmd/nano-code

@@ -124,5 +124,16 @@ make run-a2a
 ```
 
 `make test` runs `go test ./...`. `make race` runs `go test -race ./...`.
-`make lint` expects `golangci-lint` to be installed. `make build` writes
-ignored binaries under `bin/`.
+`make lint` uses only Go standard tooling: it checks `gofmt` output and runs
+`go vet ./...`. `make build` writes ignored binaries under `bin/`.
+
+Provider integration tests are excluded from the default test suite because
+they require network access and API keys. Run them explicitly with:
+
+```sh
+go test -tags=integration ./internal/infrastructure/llm/providers
+```
+
+Each provider test skips unless its provider API key is set. Optional model
+overrides are `OPENAI_INTEGRATION_MODEL`, `ANTHROPIC_INTEGRATION_MODEL`, and
+`GOOGLE_INTEGRATION_MODEL`.
