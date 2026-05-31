@@ -2,6 +2,7 @@ package providers
 
 import (
 	"fmt"
+	"net/http"
 	"strings"
 
 	"nano-code-go/internal/domain"
@@ -11,7 +12,7 @@ type Env map[string]string
 
 type FactoryOptions struct {
 	Env    Env
-	Client HTTPDoer
+	Client *http.Client
 }
 
 func CreateModelFromEnv(options FactoryOptions) (domain.LanguageModel, error) {

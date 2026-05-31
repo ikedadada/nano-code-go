@@ -2,8 +2,6 @@ package providers
 
 import (
 	"errors"
-	"fmt"
-	"net/http"
 
 	anthropic "github.com/anthropics/anthropic-sdk-go"
 	openai "github.com/openai/openai-go/v3"
@@ -47,25 +45,4 @@ func sdkError(provider string, err error) error {
 	}
 
 	return err
-}
-
-func httpClientFromDoer(client HTTPDoer) *http.Client {
-	if client == nil {
-		return http.DefaultClient
-	}
-	if typed, ok := client.(*http.Client); ok {
-		return typed
-	}
-	return &http.Client{Transport: doerRoundTripper{client: client}}
-}
-
-type doerRoundTripper struct {
-	client HTTPDoer
-}
-
-func (r doerRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
-	if r.client == nil {
-		return nil, fmt.Errorf("nil HTTP client")
-	}
-	return r.client.Do(request)
 }

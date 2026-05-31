@@ -16,10 +16,14 @@ import (
 	"nano-code-go/internal/infrastructure/llm/providers"
 )
 
-type llmDoer func(*http.Request) (*http.Response, error)
+type roundTripFunc func(*http.Request) (*http.Response, error)
 
-func (f llmDoer) Do(request *http.Request) (*http.Response, error) {
+func (f roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
 	return f(request)
+}
+
+func testHTTPClient(fn func(*http.Request) (*http.Response, error)) *http.Client {
+	return &http.Client{Transport: roundTripFunc(fn)}
 }
 
 func TestCreateModelFromEnv(t *testing.T) {
@@ -130,7 +134,7 @@ func TestCreateModelFromEnvAPIKeyFallback(t *testing.T) {
 			}
 			model, err := providers.CreateModelFromEnv(providers.FactoryOptions{
 				Env: env,
-				Client: llmDoer(func(request *http.Request) (*http.Response, error) {
+				Client: testHTTPClient(func(request *http.Request) (*http.Response, error) {
 					tt.assertKey(t, request)
 					return jsonResponse(t, http.StatusOK, tt.response), nil
 				}),
@@ -153,7 +157,7 @@ func TestOpenAIProviderGenerate(t *testing.T) {
 	model := providers.NewOpenAI("gpt-test", providers.Config{
 		APIKey:  "test-key",
 		BaseURL: "https://openai.test/v1",
-		Client: llmDoer(func(request *http.Request) (*http.Response, error) {
+		Client: testHTTPClient(func(request *http.Request) (*http.Response, error) {
 			auth = request.Header.Get("Authorization")
 			if err := json.NewDecoder(request.Body).Decode(&requestBody); err != nil {
 				t.Fatalf("decode request: %v", err)
@@ -217,7 +221,7 @@ func TestAnthropicProviderGenerate(t *testing.T) {
 	model := providers.NewAnthropic("claude-test", providers.Config{
 		APIKey:  "test-key",
 		BaseURL: "https://anthropic.test/v1",
-		Client: llmDoer(func(request *http.Request) (*http.Response, error) {
+		Client: testHTTPClient(func(request *http.Request) (*http.Response, error) {
 			if got := request.Header.Get("x-api-key"); got != "test-key" {
 				t.Fatalf("x-api-key = %q", got)
 			}
@@ -261,7 +265,7 @@ func TestGoogleProviderGenerate(t *testing.T) {
 	model := providers.NewGoogle("gemini-test", providers.Config{
 		APIKey:  "test-key",
 		BaseURL: "https://google.test/v1beta",
-		Client: llmDoer(func(request *http.Request) (*http.Response, error) {
+		Client: testHTTPClient(func(request *http.Request) (*http.Response, error) {
 			requestURL = request.URL.String()
 			if err := json.NewDecoder(request.Body).Decode(&requestBody); err != nil {
 				t.Fatalf("decode request: %v", err)
@@ -441,7 +445,7 @@ func TestProviderRequestGoldens(t *testing.T) {
 			t.Parallel()
 
 			var gotJSON []byte
-			model := withClient(tt.model, llmDoer(func(request *http.Request) (*http.Response, error) {
+			model := withClient(tt.model, testHTTPClient(func(request *http.Request) (*http.Response, error) {
 				var err error
 				gotJSON, err = io.ReadAll(request.Body)
 				if err != nil {
@@ -462,14 +466,14 @@ func TestProviderStreams(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		model      func(providers.HTTPDoer) domain.LanguageModel
+		model      func(*http.Client) domain.LanguageModel
 		streamBody string
 		assertURL  string
 		want       domain.GenerateTextResult
 	}{
 		{
 			name: "openai",
-			model: func(client providers.HTTPDoer) domain.LanguageModel {
+			model: func(client *http.Client) domain.LanguageModel {
 				return providers.NewOpenAI("gpt-test", providers.Config{APIKey: "test-key", BaseURL: "https://openai.test/v1", Client: client})
 			},
 			assertURL: "https://openai.test/v1/chat/completions",
@@ -491,7 +495,7 @@ func TestProviderStreams(t *testing.T) {
 		},
 		{
 			name: "anthropic",
-			model: func(client providers.HTTPDoer) domain.LanguageModel {
+			model: func(client *http.Client) domain.LanguageModel {
 				return providers.NewAnthropic("claude-test", providers.Config{APIKey: "test-key", BaseURL: "https://anthropic.test/v1", Client: client})
 			},
 			assertURL: "https://anthropic.test/v1/messages",
@@ -512,7 +516,7 @@ func TestProviderStreams(t *testing.T) {
 		},
 		{
 			name: "google",
-			model: func(client providers.HTTPDoer) domain.LanguageModel {
+			model: func(client *http.Client) domain.LanguageModel {
 				return providers.NewGoogle("gemini-test", providers.Config{APIKey: "test-key", BaseURL: "https://google.test/v1beta", Client: client})
 			},
 			assertURL: "https://google.test/v1beta/models/gemini-test:streamGenerateContent?alt=sse",
@@ -535,7 +539,7 @@ func TestProviderStreams(t *testing.T) {
 			t.Parallel()
 
 			var requestBody map[string]any
-			model := tt.model(llmDoer(func(request *http.Request) (*http.Response, error) {
+			model := tt.model(testHTTPClient(func(request *http.Request) (*http.Response, error) {
 				if request.URL.String() != tt.assertURL {
 					t.Fatalf("url = %q, want %q", request.URL.String(), tt.assertURL)
 				}
@@ -576,7 +580,7 @@ func TestOpenAIProviderStreamPreservesToolCallIndexOrder(t *testing.T) {
 	model := providers.NewOpenAI("gpt-test", providers.Config{
 		APIKey:  "test-key",
 		BaseURL: "https://openai.test/v1",
-		Client: llmDoer(func(request *http.Request) (*http.Response, error) {
+		Client: testHTTPClient(func(request *http.Request) (*http.Response, error) {
 			return streamResponse(http.StatusOK, streamBody), nil
 		}),
 	})
@@ -604,7 +608,7 @@ func TestAnthropicProviderStreamPreservesMultipleToolCallOrder(t *testing.T) {
 	model := providers.NewAnthropic("claude-test", providers.Config{
 		APIKey:  "test-key",
 		BaseURL: "https://anthropic.test/v1",
-		Client: llmDoer(func(request *http.Request) (*http.Response, error) {
+		Client: testHTTPClient(func(request *http.Request) (*http.Response, error) {
 			return streamResponse(http.StatusOK, strings.Join([]string{
 				`event: content_block_delta` + "\n" + `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"plan"}}`,
 				`event: content_block_start` + "\n" + `data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call-z","name":"searchFiles","input":{}}}`,
@@ -643,7 +647,7 @@ func TestGoogleProviderStreamPreservesMultipleToolCallOrder(t *testing.T) {
 	model := providers.NewGoogle("gemini-test", providers.Config{
 		APIKey:  "test-key",
 		BaseURL: "https://google.test/v1beta",
-		Client: llmDoer(func(request *http.Request) (*http.Response, error) {
+		Client: testHTTPClient(func(request *http.Request) (*http.Response, error) {
 			return streamResponse(http.StatusOK, strings.Join([]string{
 				`data: {"candidates":[{"content":{"parts":[{"text":"plan"},{"functionCall":{"id":"call-z","name":"searchFiles","args":{"query":"first"}}},{"functionCall":{"id":"call-a","name":"readFile","args":{"path":"second.txt"}}}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":2,"totalTokenCount":3}}`,
 				``,
@@ -671,7 +675,7 @@ func TestGoogleProviderStreamPreservesMultipleToolCallOrder(t *testing.T) {
 	}
 }
 
-func withClient(model domain.LanguageModel, client providers.HTTPDoer) domain.LanguageModel {
+func withClient(model domain.LanguageModel, client *http.Client) domain.LanguageModel {
 	switch typed := model.(type) {
 	case *providers.OpenAIProvider:
 		_ = typed

@@ -177,6 +177,12 @@
 - [x] A2A interface が CLI interface に依存しないよう、共通の agent wiring を interface 層の外へ切り出す。CLI と A2A はそれぞれ同じ runtime runner へ依存する形にする。
 - [x] 上記修正の Go test を追加または更新し、streaming stdout が一度だけ出ることと A2A/CLI の wiring が維持されることを検証する。
 
+## Review follow-up: provider HTTP client 整理
+
+- [x] `internal/infrastructure/llm/providers` の production API から独自 `HTTPDoer` を削除し、SDK に渡す HTTP client は標準 `*http.Client` に統一する。
+- [x] SDK 化前の未使用 HTTP helper (`postJSON` / `streamJSON` など) を削除し、provider package には現在使う helper だけを残す。
+- [x] provider tests の HTTP fake は test helper の `RoundTripper` として実装し、production package にテスト都合の interface を置かない形にする。
+
 ## 完了条件
 
 - [x] CLI で既存と同じ prompt 実行、tool call、approval、streaming が動く。

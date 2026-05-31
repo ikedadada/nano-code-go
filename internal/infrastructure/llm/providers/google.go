@@ -26,7 +26,7 @@ func NewGoogle(modelID string, config Config) *GoogleProvider {
 	clientConfig := &genai.ClientConfig{
 		APIKey:     config.APIKey,
 		Backend:    genai.BackendGeminiAPI,
-		HTTPClient: httpClientFromDoer(config.Client),
+		HTTPClient: config.Client,
 	}
 	if config.BaseURL != "" {
 		clientConfig.HTTPOptions = googleHTTPOptions(config.BaseURL)
