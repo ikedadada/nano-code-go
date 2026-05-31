@@ -157,10 +157,10 @@
 
 - [x] 公式 Go SDK の有無を確認する: OpenAI `github.com/openai/openai-go/v3`、Anthropic `github.com/anthropics/anthropic-sdk-go`、Gemini `google.golang.org/genai`。
 - [x] CI に `govulncheck ./...` を追加し、既知脆弱性を pull request と main push で検出する。
-- [ ] OpenAI provider を公式 SDK 実装へ置き換え、`domain.LanguageModel` 境界と既存の message/tool/usage 変換を維持する。
-- [ ] Anthropic provider を公式 SDK 実装へ置き換え、Messages API の tool use と streaming event 変換を維持する。
-- [ ] Google provider を公式 SDK 実装へ置き換え、Gemini API の function calling と streaming 変換を維持する。
-- [ ] SDK 追加後に `go mod verify`、`govulncheck ./...`、`go test ./...`、`go test -race ./...` を必須検証として実行する。
+- [x] OpenAI provider を公式 SDK 実装へ置き換え、`domain.LanguageModel` 境界と既存の message/tool/usage 変換を維持する。
+- [x] Anthropic provider を公式 SDK 実装へ置き換え、Messages API の tool use と streaming event 変換を維持する。
+- [x] Google provider を公式 SDK 実装へ置き換え、Gemini API の function calling と streaming 変換を維持する。
+- [x] SDK 追加後に `go mod verify`、`govulncheck ./...`、`go test ./...`、`go test -race ./...` を必須検証として実行する。
 
 ## 完了条件
 

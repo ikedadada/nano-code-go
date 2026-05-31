@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"strings"
 
+	anthropic "github.com/anthropics/anthropic-sdk-go"
+	anthropicoption "github.com/anthropics/anthropic-sdk-go/option"
+
 	"nano-code-go/internal/domain"
 )
 
@@ -13,7 +16,7 @@ type AnthropicProvider struct {
 	modelID string
 	apiKey  string
 	baseURL string
-	client  HTTPDoer
+	client  anthropic.Client
 }
 
 func NewAnthropic(modelID string, config Config) *AnthropicProvider {
@@ -21,58 +24,29 @@ func NewAnthropic(modelID string, config Config) *AnthropicProvider {
 	if baseURL == "" {
 		baseURL = "https://api.anthropic.com/v1"
 	}
+	baseURL = strings.TrimRight(baseURL, "/")
+	baseURL = strings.TrimSuffix(baseURL, "/v1")
+
+	options := []anthropicoption.RequestOption{
+		anthropicoption.WithAPIKey(config.APIKey),
+		anthropicoption.WithBaseURL(baseURL),
+	}
+	if config.Client != nil {
+		options = append(options, anthropicoption.WithHTTPClient(config.Client))
+	}
+
 	return &AnthropicProvider{
 		modelID: modelID,
 		apiKey:  config.APIKey,
-		baseURL: strings.TrimRight(baseURL, "/"),
-		client:  httpClient(config.Client),
+		baseURL: baseURL,
+		client:  anthropic.NewClient(options...),
 	}
 }
 
 func (p *AnthropicProvider) Generate(ctx context.Context, params domain.GenerateParams) (domain.GenerateTextResult, error) {
-	request := map[string]any{
-		"model":      p.modelID,
-		"system":     anthropicSystem(params.Messages),
-		"messages":   anthropicMessages(params.Messages),
-		"max_tokens": 4096,
-	}
-	if params.Temperature != nil {
-		request["temperature"] = *params.Temperature
-	}
-	if params.MaxTokens != nil {
-		request["max_tokens"] = *params.MaxTokens
-	}
-	if len(params.Tools) > 0 {
-		tools := make([]map[string]any, 0, len(params.Tools))
-		for _, tool := range params.Tools {
-			tools = append(tools, map[string]any{
-				"name":         tool.Name,
-				"description":  tool.Description,
-				"input_schema": toolSchema(tool),
-			})
-		}
-		request["tools"] = tools
-	}
-
-	var response struct {
-		Content []struct {
-			Type  string         `json:"type"`
-			Text  string         `json:"text"`
-			ID    string         `json:"id"`
-			Name  string         `json:"name"`
-			Input map[string]any `json:"input"`
-		} `json:"content"`
-		StopReason string `json:"stop_reason"`
-		Usage      struct {
-			InputTokens  int `json:"input_tokens"`
-			OutputTokens int `json:"output_tokens"`
-		} `json:"usage"`
-	}
-	if err := postJSON(ctx, p.client, p.baseURL+"/messages", map[string]string{
-		"x-api-key":         p.apiKey,
-		"anthropic-version": "2023-06-01",
-	}, request, &response, "anthropic"); err != nil {
-		return domain.GenerateTextResult{}, err
+	response, err := p.client.Messages.New(ctx, p.requestParams(params))
+	if err != nil {
+		return domain.GenerateTextResult{}, sdkError("anthropic", err)
 	}
 
 	var text strings.Builder
@@ -82,56 +56,78 @@ func (p *AnthropicProvider) Generate(ctx context.Context, params domain.Generate
 		case "text":
 			text.WriteString(block.Text)
 		case "tool_use":
-			toolCalls = append(toolCalls, domain.ToolCall{ToolCallID: block.ID, Name: block.Name, Args: block.Input})
+			args, err := rawJSONObject(block.Input)
+			if err != nil {
+				return domain.GenerateTextResult{}, err
+			}
+			toolCalls = append(toolCalls, domain.ToolCall{ToolCallID: block.ID, Name: block.Name, Args: args})
 		}
 	}
 	return domain.GenerateTextResult{
 		Text:         text.String(),
-		FinishReason: anthropicFinishReason(response.StopReason),
+		FinishReason: anthropicFinishReason(string(response.StopReason)),
 		ToolCalls:    toolCalls,
 		Usage: domain.Usage{
-			PromptTokens:     response.Usage.InputTokens,
-			CompletionTokens: response.Usage.OutputTokens,
-			TotalTokens:      response.Usage.InputTokens + response.Usage.OutputTokens,
+			PromptTokens:     int(response.Usage.InputTokens),
+			CompletionTokens: int(response.Usage.OutputTokens),
+			TotalTokens:      int(response.Usage.InputTokens + response.Usage.OutputTokens),
 		},
 	}, nil
 }
 
 func (p *AnthropicProvider) Stream(ctx context.Context, params domain.GenerateParams) (<-chan domain.StreamChunk, error) {
-	request := map[string]any{
-		"model":      p.modelID,
-		"system":     anthropicSystem(params.Messages),
-		"messages":   anthropicMessages(params.Messages),
-		"max_tokens": 4096,
-		"stream":     true,
+	stream := p.client.Messages.NewStreaming(ctx, p.requestParams(params))
+
+	chunks := make(chan domain.StreamChunk)
+	go func() {
+		defer close(chunks)
+		defer stream.Close()
+
+		decoder := &anthropicStreamDecoder{
+			toolCalls:      map[string]domain.ToolCall{},
+			partialJSON:    map[string]string{},
+			contentIndexID: map[int]string{},
+		}
+		for stream.Next() {
+			decoded, done, err := decoder.decode(stream.Current())
+			if err != nil {
+				sendStreamChunk(ctx, chunks, domain.StreamChunk{Err: err})
+				return
+			}
+			for _, chunk := range decoded {
+				if !sendStreamChunk(ctx, chunks, chunk) {
+					return
+				}
+			}
+			if done {
+				return
+			}
+		}
+		if err := stream.Err(); err != nil {
+			sendStreamChunk(ctx, chunks, domain.StreamChunk{Err: sdkError("anthropic", err)})
+		}
+	}()
+	return chunks, nil
+}
+
+func (p *AnthropicProvider) requestParams(params domain.GenerateParams) anthropic.MessageNewParams {
+	maxTokens := int64(4096)
+	if params.MaxTokens != nil {
+		maxTokens = int64(*params.MaxTokens)
+	}
+	request := anthropic.MessageNewParams{
+		Model:     anthropic.Model(p.modelID),
+		System:    anthropicSystem(params.Messages),
+		Messages:  anthropicMessages(params.Messages),
+		MaxTokens: maxTokens,
 	}
 	if params.Temperature != nil {
-		request["temperature"] = *params.Temperature
-	}
-	if params.MaxTokens != nil {
-		request["max_tokens"] = *params.MaxTokens
+		request.Temperature = anthropic.Float(*params.Temperature)
 	}
 	if len(params.Tools) > 0 {
-		tools := make([]map[string]any, 0, len(params.Tools))
-		for _, tool := range params.Tools {
-			tools = append(tools, map[string]any{
-				"name":         tool.Name,
-				"description":  tool.Description,
-				"input_schema": toolSchema(tool),
-			})
-		}
-		request["tools"] = tools
+		request.Tools = anthropicTools(params.Tools)
 	}
-
-	decoder := &anthropicStreamDecoder{
-		toolCalls:      map[string]domain.ToolCall{},
-		partialJSON:    map[string]string{},
-		contentIndexID: map[int]string{},
-	}
-	return streamJSON(ctx, p.client, p.baseURL+"/messages", map[string]string{
-		"x-api-key":         p.apiKey,
-		"anthropic-version": "2023-06-01",
-	}, request, "anthropic", decoder.decode)
+	return request
 }
 
 type anthropicStreamDecoder struct {
@@ -140,37 +136,17 @@ type anthropicStreamDecoder struct {
 	contentIndexID map[int]string
 }
 
-func (d *anthropicStreamDecoder) decode(data []byte) ([]domain.StreamChunk, bool, error) {
-	var event struct {
-		Type         string `json:"type"`
-		Index        int    `json:"index"`
-		ContentBlock struct {
-			Type  string         `json:"type"`
-			ID    string         `json:"id"`
-			Name  string         `json:"name"`
-			Input map[string]any `json:"input"`
-		} `json:"content_block"`
-		Delta struct {
-			Type        string `json:"type"`
-			Text        string `json:"text"`
-			PartialJSON string `json:"partial_json"`
-			StopReason  string `json:"stop_reason"`
-		} `json:"delta"`
-		Usage *struct {
-			InputTokens  int `json:"input_tokens"`
-			OutputTokens int `json:"output_tokens"`
-		} `json:"usage"`
-	}
-	if err := json.Unmarshal(data, &event); err != nil {
-		return nil, false, fmt.Errorf("decode anthropic stream event: %w", err)
-	}
-
+func (d *anthropicStreamDecoder) decode(event anthropic.MessageStreamEventUnion) ([]domain.StreamChunk, bool, error) {
 	switch event.Type {
 	case "content_block_start":
 		if event.ContentBlock.Type == "tool_use" {
 			id := event.ContentBlock.ID
-			d.contentIndexID[event.Index] = id
-			d.toolCalls[id] = domain.ToolCall{ToolCallID: id, Name: event.ContentBlock.Name, Args: event.ContentBlock.Input}
+			d.contentIndexID[int(event.Index)] = id
+			args, err := objectFromAny(event.ContentBlock.Input)
+			if err != nil {
+				return nil, false, err
+			}
+			d.toolCalls[id] = domain.ToolCall{ToolCallID: id, Name: event.ContentBlock.Name, Args: args}
 			d.partialJSON[id] = ""
 		}
 	case "content_block_delta":
@@ -180,7 +156,7 @@ func (d *anthropicStreamDecoder) decode(data []byte) ([]domain.StreamChunk, bool
 				return []domain.StreamChunk{{Kind: domain.StreamKindDelta, Text: event.Delta.Text}}, false, nil
 			}
 		case "input_json_delta":
-			id := d.contentIndexID[event.Index]
+			id := d.contentIndexID[int(event.Index)]
 			if id != "" {
 				d.partialJSON[id] += event.Delta.PartialJSON
 				if args, err := parseJSONObject(d.partialJSON[id]); err == nil {
@@ -193,15 +169,13 @@ func (d *anthropicStreamDecoder) decode(data []byte) ([]domain.StreamChunk, bool
 	case "message_delta":
 		done := domain.StreamChunk{
 			Kind:         domain.StreamKindDone,
-			FinishReason: anthropicFinishReason(event.Delta.StopReason),
+			FinishReason: anthropicFinishReason(string(event.Delta.StopReason)),
 			ToolCalls:    d.toolCallResults(),
 		}
-		if event.Usage != nil {
-			done.Usage = domain.Usage{
-				PromptTokens:     event.Usage.InputTokens,
-				CompletionTokens: event.Usage.OutputTokens,
-				TotalTokens:      event.Usage.InputTokens + event.Usage.OutputTokens,
-			}
+		done.Usage = domain.Usage{
+			PromptTokens:     int(event.Usage.InputTokens),
+			CompletionTokens: int(event.Usage.OutputTokens),
+			TotalTokens:      int(event.Usage.InputTokens + event.Usage.OutputTokens),
 		}
 		return []domain.StreamChunk{done}, false, nil
 	case "message_stop":
@@ -221,59 +195,60 @@ func (d *anthropicStreamDecoder) toolCallResults() []domain.ToolCall {
 	return result
 }
 
-func anthropicSystem(messages []domain.Message) []map[string]any {
-	var system []map[string]any
+func anthropicSystem(messages []domain.Message) []anthropic.TextBlockParam {
+	var system []anthropic.TextBlockParam
 	for _, message := range messages {
 		if message.Role == domain.MessageRoleSystem {
-			system = append(system, map[string]any{"type": "text", "text": message.Content})
+			system = append(system, anthropic.TextBlockParam{Text: message.Content})
 		}
 	}
 	return system
 }
 
-func anthropicMessages(messages []domain.Message) []map[string]any {
-	var result []map[string]any
+func anthropicMessages(messages []domain.Message) []anthropic.MessageParam {
+	var result []anthropic.MessageParam
 	for _, message := range messages {
 		switch message.Role {
 		case domain.MessageRoleSystem:
 			continue
 		case domain.MessageRoleTool:
-			result = append(result, map[string]any{
-				"role": "user",
-				"content": []map[string]any{{
-					"type":        "tool_result",
-					"tool_use_id": message.ToolCallID,
-					"content":     message.Content,
-				}},
-			})
+			result = append(result, anthropic.NewUserMessage(anthropic.NewToolResultBlock(message.ToolCallID, message.Content, false)))
 		case domain.MessageRoleAssistant:
 			if message.ToolCalls != nil {
-				content := []map[string]any{}
+				content := []anthropic.ContentBlockParamUnion{}
 				if message.Content != "" {
-					content = append(content, map[string]any{"type": "text", "text": message.Content})
+					content = append(content, anthropic.NewTextBlock(message.Content))
 				}
 				for _, call := range message.ToolCalls {
-					content = append(content, map[string]any{
-						"type":  "tool_use",
-						"id":    call.ToolCallID,
-						"name":  call.Name,
-						"input": call.Args,
-					})
+					content = append(content, anthropic.NewToolUseBlock(call.ToolCallID, call.Args, call.Name))
 				}
-				result = append(result, map[string]any{"role": "assistant", "content": content})
+				result = append(result, anthropic.NewAssistantMessage(content...))
 				continue
 			}
-			result = append(result, map[string]any{"role": "assistant", "content": message.Content})
+			result = append(result, anthropic.NewAssistantMessage(anthropic.NewTextBlock(message.Content)))
 		default:
-			result = append(result, map[string]any{"role": string(message.Role), "content": message.Content})
+			result = append(result, anthropic.NewUserMessage(anthropic.NewTextBlock(message.Content)))
 		}
+	}
+	return result
+}
+
+func anthropicTools(tools []domain.Tool) []anthropic.ToolUnionParam {
+	result := make([]anthropic.ToolUnionParam, 0, len(tools))
+	for _, tool := range tools {
+		converted := anthropic.ToolUnionParamOfTool(anthropic.ToolInputSchemaParam{
+			Properties: tool.Parameters.Properties,
+			Required:   tool.Parameters.Required,
+		}, tool.Name)
+		converted.OfTool.Description = anthropic.String(tool.Description)
+		result = append(result, converted)
 	}
 	return result
 }
 
 func anthropicFinishReason(reason string) domain.FinishReason {
 	switch reason {
-	case "end_turn":
+	case "end_turn", "stop_sequence":
 		return domain.FinishReasonStop
 	case "max_tokens":
 		return domain.FinishReasonLength
@@ -284,4 +259,19 @@ func anthropicFinishReason(reason string) domain.FinishReason {
 	default:
 		return domain.FinishReasonStop
 	}
+}
+
+func rawJSONObject(raw json.RawMessage) (map[string]any, error) {
+	return parseJSONObject(string(raw))
+}
+
+func objectFromAny(value any) (map[string]any, error) {
+	if value == nil {
+		return map[string]any{}, nil
+	}
+	body, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("encode JSON object: %w", err)
+	}
+	return parseJSONObject(string(body))
 }

@@ -2,7 +2,7 @@
 
 GO ?= go
 GOCACHE ?= /tmp/go-build
-GOVULNCHECK ?= govulncheck
+GOVULNCHECK ?= $(GO) tool govulncheck
 
 fmt:
 	gofmt -w ./cmd ./internal

@@ -108,8 +108,8 @@ func TestCreateModelFromEnvAPIKeyFallback(t *testing.T) {
 			provider: "google",
 			assertKey: func(t *testing.T, request *http.Request) {
 				t.Helper()
-				if got := request.URL.Query().Get("key"); got != "generic-key" {
-					t.Fatalf("key query = %q", got)
+				if got := request.Header.Get("x-goog-api-key"); got != "generic-key" {
+					t.Fatalf("x-goog-api-key = %q", got)
 				}
 			},
 			response: googleTestResponse(),
@@ -283,12 +283,13 @@ func TestGoogleProviderGenerate(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
-	if !strings.Contains(requestURL, "/models/gemini-test:generateContent?key=test-key") {
+	if !strings.Contains(requestURL, "/models/gemini-test:generateContent") {
 		t.Fatalf("request URL = %q", requestURL)
 	}
-	config := requestBody["config"].(map[string]any)
-	if config["systemInstruction"] != "system" {
-		t.Fatalf("config = %#v", config)
+	systemInstruction := requestBody["systemInstruction"].(map[string]any)
+	systemParts := systemInstruction["parts"].([]any)
+	if systemParts[0].(map[string]any)["text"] != "system" {
+		t.Fatalf("systemInstruction = %#v", systemInstruction)
 	}
 	if result.Text != "hello" || result.FinishReason != domain.FinishReasonToolCall || result.Usage.TotalTokens != 3 {
 		t.Fatalf("result = %#v", result)
@@ -362,10 +363,17 @@ func TestProviderRequestGoldens(t *testing.T) {
 						"role": "assistant"
 					},
 					{
-						"content": [{"content": "file content", "tool_use_id": "call-0", "type": "tool_result"}],
+						"content": [
+							{
+								"content": [{"text": "file content", "type": "text"}],
+								"is_error": false,
+								"tool_use_id": "call-0",
+								"type": "tool_result"
+							}
+						],
 						"role": "user"
 					},
-					{"content": "hello", "role": "user"}
+					{"content": [{"text": "hello", "type": "text"}], "role": "user"}
 				],
 				"model": "claude-test",
 				"system": [{"text": "system", "type": "text"}],
@@ -388,26 +396,6 @@ func TestProviderRequestGoldens(t *testing.T) {
 			model:    providers.NewGoogle("gemini-test", providers.Config{APIKey: "test-key", BaseURL: "https://google.test/v1beta"}),
 			response: googleTestResponse(),
 			wantJSON: `{
-				"config": {
-					"maxOutputTokens": 512,
-					"systemInstruction": "system",
-					"temperature": 0.2,
-					"tools": [
-						{
-							"functionDeclarations": [
-								{
-									"description": "Read a file",
-									"name": "readFile",
-									"parametersJsonSchema": {
-										"properties": {"path": {"description": "The path", "type": "string"}},
-										"required": ["path"],
-										"type": "object"
-									}
-								}
-							]
-						}
-					]
-				},
 				"contents": [
 					{
 						"parts": [
@@ -420,9 +408,29 @@ func TestProviderRequestGoldens(t *testing.T) {
 						"parts": [
 							{"functionResponse": {"name": "readFile", "response": {"result": {"result": "file content"}}}}
 						],
-						"role": "tool"
+						"role": "user"
 					},
 					{"parts": [{"text": "hello"}], "role": "user"}
+				],
+				"generationConfig": {
+					"maxOutputTokens": 512,
+					"temperature": 0.2
+				},
+				"systemInstruction": {"parts": [{"text": "system"}], "role": "user"},
+				"tools": [
+					{
+						"functionDeclarations": [
+							{
+								"description": "Read a file",
+								"name": "readFile",
+								"parametersJsonSchema": {
+									"properties": {"path": {"description": "The path", "type": "string"}},
+									"required": ["path"],
+									"type": "object"
+								}
+							}
+						]
+					}
 				]
 			}`,
 		},
@@ -488,14 +496,13 @@ func TestProviderStreams(t *testing.T) {
 			},
 			assertURL: "https://anthropic.test/v1/messages",
 			streamBody: strings.Join([]string{
-				`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hel"}}`,
-				`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"lo"}}`,
-				`data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call-1","name":"readFile","input":{}}}`,
-				`data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"a.txt\"}"}}`,
-				`data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"input_tokens":1,"output_tokens":2}}`,
-				`data: {"type":"message_stop"}`,
-				``,
-			}, "\n"),
+				`event: content_block_delta` + "\n" + `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hel"}}`,
+				`event: content_block_delta` + "\n" + `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"lo"}}`,
+				`event: content_block_start` + "\n" + `data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call-1","name":"readFile","input":{}}}`,
+				`event: content_block_delta` + "\n" + `data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"a.txt\"}"}}`,
+				`event: message_delta` + "\n" + `data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"input_tokens":1,"output_tokens":2}}`,
+				`event: message_stop` + "\n" + `data: {"type":"message_stop"}`,
+			}, "\n\n"),
 			want: domain.GenerateTextResult{
 				Text:         "hello",
 				FinishReason: domain.FinishReasonToolCall,
@@ -508,7 +515,7 @@ func TestProviderStreams(t *testing.T) {
 			model: func(client providers.HTTPDoer) domain.LanguageModel {
 				return providers.NewGoogle("gemini-test", providers.Config{APIKey: "test-key", BaseURL: "https://google.test/v1beta", Client: client})
 			},
-			assertURL: "https://google.test/v1beta/models/gemini-test:streamGenerateContent?alt=sse&key=test-key",
+			assertURL: "https://google.test/v1beta/models/gemini-test:streamGenerateContent?alt=sse",
 			streamBody: strings.Join([]string{
 				`data: {"candidates":[{"content":{"parts":[{"text":"hel"}]}}]}`,
 				`data: {"candidates":[{"content":{"parts":[{"text":"lo"},{"functionCall":{"name":"readFile","args":{"path":"a.txt"}}}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":2,"totalTokenCount":3}}`,
@@ -647,6 +654,11 @@ func jsonResponse(t *testing.T, status int, value any) *http.Response {
 }
 
 func streamResponse(status int, body string) *http.Response {
+	body = strings.TrimSpace(body)
+	if !strings.Contains(body, "\n\n") {
+		body = strings.Join(strings.Split(body, "\n"), "\n\n")
+	}
+	body += "\n\n"
 	return &http.Response{
 		StatusCode: status,
 		Status:     fmt.Sprintf("%d %s", status, http.StatusText(status)),

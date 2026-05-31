@@ -85,6 +85,9 @@ automatically granted for authenticated requests.
 - `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`: provider-specific
   API keys. If a provider-specific key is not set, `LLM_API_KEY` is used.
 
+The provider implementations use the official Go SDKs for OpenAI, Anthropic,
+and Gemini while preserving the internal `domain.LanguageModel` interface.
+
 ## Migration Tracking
 
 `TODO.md` is the migration checklist. Detailed compatibility tables are in
@@ -126,8 +129,8 @@ make run-a2a
 
 `make test` runs `go test ./...`. `make race` runs `go test -race ./...`.
 `make lint` uses only Go standard tooling: it checks `gofmt` output and runs
-`go vet ./...`. `make vuln` runs `govulncheck ./...` and requires
-`govulncheck` on `PATH`. `make build` writes ignored binaries under `bin/`.
+`go vet ./...`. `make vuln` runs the pinned `govulncheck` tool through
+`go tool govulncheck ./...`. `make build` writes ignored binaries under `bin/`.
 
 Provider integration tests are excluded from the default test suite because
 they require network access and API keys. Run them explicitly with:

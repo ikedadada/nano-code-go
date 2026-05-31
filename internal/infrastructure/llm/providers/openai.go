@@ -7,6 +7,10 @@ import (
 	"sort"
 	"strings"
 
+	openai "github.com/openai/openai-go/v3"
+	openaioption "github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/shared"
+
 	"nano-code-go/internal/domain"
 )
 
@@ -14,7 +18,7 @@ type OpenAIProvider struct {
 	modelID string
 	apiKey  string
 	baseURL string
-	client  HTTPDoer
+	client  openai.Client
 }
 
 func NewOpenAI(modelID string, config Config) *OpenAIProvider {
@@ -22,65 +26,28 @@ func NewOpenAI(modelID string, config Config) *OpenAIProvider {
 	if baseURL == "" {
 		baseURL = "https://api.openai.com/v1"
 	}
+	baseURL = strings.TrimRight(baseURL, "/")
+
+	options := []openaioption.RequestOption{
+		openaioption.WithAPIKey(config.APIKey),
+		openaioption.WithBaseURL(baseURL),
+	}
+	if config.Client != nil {
+		options = append(options, openaioption.WithHTTPClient(config.Client))
+	}
+
 	return &OpenAIProvider{
 		modelID: modelID,
 		apiKey:  config.APIKey,
-		baseURL: strings.TrimRight(baseURL, "/"),
-		client:  httpClient(config.Client),
+		baseURL: baseURL,
+		client:  openai.NewClient(options...),
 	}
 }
 
 func (p *OpenAIProvider) Generate(ctx context.Context, params domain.GenerateParams) (domain.GenerateTextResult, error) {
-	request := map[string]any{
-		"model":    p.modelID,
-		"messages": openAIMessages(params.Messages),
-	}
-	if params.Temperature != nil {
-		request["temperature"] = *params.Temperature
-	}
-	if params.MaxTokens != nil {
-		request["max_tokens"] = *params.MaxTokens
-	}
-	if len(params.Tools) > 0 {
-		tools := make([]map[string]any, 0, len(params.Tools))
-		for _, tool := range params.Tools {
-			tools = append(tools, map[string]any{
-				"type": "function",
-				"function": map[string]any{
-					"name":        tool.Name,
-					"description": tool.Description,
-					"parameters":  toolSchema(tool),
-				},
-			})
-		}
-		request["tools"] = tools
-	}
-
-	var response struct {
-		Choices []struct {
-			Message struct {
-				Content   string `json:"content"`
-				ToolCalls []struct {
-					ID       string `json:"id"`
-					Type     string `json:"type"`
-					Function struct {
-						Name      string `json:"name"`
-						Arguments string `json:"arguments"`
-					} `json:"function"`
-				} `json:"tool_calls"`
-			} `json:"message"`
-			FinishReason string `json:"finish_reason"`
-		} `json:"choices"`
-		Usage struct {
-			PromptTokens     int `json:"prompt_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
-			TotalTokens      int `json:"total_tokens"`
-		} `json:"usage"`
-	}
-	if err := postJSON(ctx, p.client, p.baseURL+"/chat/completions", map[string]string{
-		"Authorization": "Bearer " + p.apiKey,
-	}, request, &response, "openai"); err != nil {
-		return domain.GenerateTextResult{}, err
+	response, err := p.client.Chat.Completions.New(ctx, p.requestParams(params))
+	if err != nil {
+		return domain.GenerateTextResult{}, sdkError("openai", err)
 	}
 	if len(response.Choices) == 0 {
 		return domain.GenerateTextResult{}, &domain.LLMAPIError{Status: 500, Provider: "openai", Message: "No choices returned from OpenAI API", Raw: response}
@@ -89,59 +56,74 @@ func (p *OpenAIProvider) Generate(ctx context.Context, params domain.GeneratePar
 	choice := response.Choices[0]
 	toolCalls := make([]domain.ToolCall, 0, len(choice.Message.ToolCalls))
 	for _, call := range choice.Message.ToolCalls {
-		if call.Type != "function" {
+		function := call.AsFunction()
+		if function.ID == "" && function.Function.Name == "" {
 			continue
 		}
-		args, err := parseJSONObject(call.Function.Arguments)
+		args, err := parseJSONObject(function.Function.Arguments)
 		if err != nil {
 			return domain.GenerateTextResult{}, err
 		}
-		toolCalls = append(toolCalls, domain.ToolCall{ToolCallID: call.ID, Name: call.Function.Name, Args: args})
+		toolCalls = append(toolCalls, domain.ToolCall{ToolCallID: function.ID, Name: function.Function.Name, Args: args})
 	}
+
 	return domain.GenerateTextResult{
 		Text:         choice.Message.Content,
 		FinishReason: openAIFinishReason(choice.FinishReason),
 		ToolCalls:    toolCalls,
 		Usage: domain.Usage{
-			PromptTokens:     response.Usage.PromptTokens,
-			CompletionTokens: response.Usage.CompletionTokens,
-			TotalTokens:      response.Usage.TotalTokens,
+			PromptTokens:     int(response.Usage.PromptTokens),
+			CompletionTokens: int(response.Usage.CompletionTokens),
+			TotalTokens:      int(response.Usage.TotalTokens),
 		},
 	}, nil
 }
 
 func (p *OpenAIProvider) Stream(ctx context.Context, params domain.GenerateParams) (<-chan domain.StreamChunk, error) {
-	request := map[string]any{
-		"model":          p.modelID,
-		"messages":       openAIMessages(params.Messages),
-		"stream":         true,
-		"stream_options": map[string]any{"include_usage": true},
+	request := p.requestParams(params)
+	request.StreamOptions.IncludeUsage = openai.Bool(true)
+	stream := p.client.Chat.Completions.NewStreaming(ctx, request)
+
+	chunks := make(chan domain.StreamChunk)
+	go func() {
+		defer close(chunks)
+		defer stream.Close()
+
+		decoder := &openAIStreamDecoder{}
+		for stream.Next() {
+			decoded, err := decoder.decode(stream.Current())
+			if err != nil {
+				sendStreamChunk(ctx, chunks, domain.StreamChunk{Err: err})
+				return
+			}
+			for _, chunk := range decoded {
+				if !sendStreamChunk(ctx, chunks, chunk) {
+					return
+				}
+			}
+		}
+		if err := stream.Err(); err != nil {
+			sendStreamChunk(ctx, chunks, domain.StreamChunk{Err: sdkError("openai", err)})
+		}
+	}()
+	return chunks, nil
+}
+
+func (p *OpenAIProvider) requestParams(params domain.GenerateParams) openai.ChatCompletionNewParams {
+	request := openai.ChatCompletionNewParams{
+		Model:    openai.ChatModel(p.modelID),
+		Messages: openAIMessages(params.Messages),
 	}
 	if params.Temperature != nil {
-		request["temperature"] = *params.Temperature
+		request.Temperature = openai.Float(*params.Temperature)
 	}
 	if params.MaxTokens != nil {
-		request["max_tokens"] = *params.MaxTokens
+		request.MaxTokens = openai.Int(int64(*params.MaxTokens))
 	}
 	if len(params.Tools) > 0 {
-		tools := make([]map[string]any, 0, len(params.Tools))
-		for _, tool := range params.Tools {
-			tools = append(tools, map[string]any{
-				"type": "function",
-				"function": map[string]any{
-					"name":        tool.Name,
-					"description": tool.Description,
-					"parameters":  toolSchema(tool),
-				},
-			})
-		}
-		request["tools"] = tools
+		request.Tools = openAITools(params.Tools)
 	}
-
-	decoder := &openAIStreamDecoder{}
-	return streamJSON(ctx, p.client, p.baseURL+"/chat/completions", map[string]string{
-		"Authorization": "Bearer " + p.apiKey,
-	}, request, "openai", decoder.decode)
+	return request
 }
 
 type openAIStreamDecoder struct {
@@ -155,32 +137,7 @@ type openAIStreamToolCall struct {
 	argsText string
 }
 
-func (d *openAIStreamDecoder) decode(data []byte) ([]domain.StreamChunk, bool, error) {
-	var event struct {
-		Choices []struct {
-			Delta struct {
-				Content   string `json:"content"`
-				ToolCalls []struct {
-					Index    int    `json:"index"`
-					ID       string `json:"id"`
-					Function struct {
-						Name      string `json:"name"`
-						Arguments string `json:"arguments"`
-					} `json:"function"`
-				} `json:"tool_calls"`
-			} `json:"delta"`
-			FinishReason string `json:"finish_reason"`
-		} `json:"choices"`
-		Usage *struct {
-			PromptTokens     int `json:"prompt_tokens"`
-			CompletionTokens int `json:"completion_tokens"`
-			TotalTokens      int `json:"total_tokens"`
-		} `json:"usage"`
-	}
-	if err := json.Unmarshal(data, &event); err != nil {
-		return nil, false, fmt.Errorf("decode openai stream event: %w", err)
-	}
-
+func (d *openAIStreamDecoder) decode(event openai.ChatCompletionChunk) ([]domain.StreamChunk, error) {
 	var chunks []domain.StreamChunk
 	var finishReason domain.FinishReason
 	if len(event.Choices) > 0 {
@@ -196,15 +153,16 @@ func (d *openAIStreamDecoder) decode(data []byte) ([]domain.StreamChunk, bool, e
 				d.indexKeys = map[int]string{}
 			}
 			for _, call := range choice.Delta.ToolCalls {
+				index := int(call.Index)
 				key := call.ID
 				if key == "" {
-					key = d.indexKeys[call.Index]
+					key = d.indexKeys[index]
 				}
 				if key == "" {
-					key = fmt.Sprintf("%d", call.Index)
+					key = fmt.Sprintf("%d", index)
 				}
 				if call.ID != "" {
-					d.indexKeys[call.Index] = key
+					d.indexKeys[index] = key
 				}
 				existing := d.toolCalls[key]
 				if existing == nil {
@@ -224,18 +182,18 @@ func (d *openAIStreamDecoder) decode(data []byte) ([]domain.StreamChunk, bool, e
 			finishReason = openAIFinishReason(choice.FinishReason)
 		}
 	}
-	if finishReason != "" || event.Usage != nil {
+	if finishReason != "" || event.Usage.JSON.TotalTokens.Valid() {
 		done := domain.StreamChunk{Kind: domain.StreamKindDone, FinishReason: finishReason, ToolCalls: d.toolCallResults()}
-		if event.Usage != nil {
+		if event.Usage.JSON.TotalTokens.Valid() {
 			done.Usage = domain.Usage{
-				PromptTokens:     event.Usage.PromptTokens,
-				CompletionTokens: event.Usage.CompletionTokens,
-				TotalTokens:      event.Usage.TotalTokens,
+				PromptTokens:     int(event.Usage.PromptTokens),
+				CompletionTokens: int(event.Usage.CompletionTokens),
+				TotalTokens:      int(event.Usage.TotalTokens),
 			}
 		}
 		chunks = append(chunks, done)
 	}
-	return chunks, false, nil
+	return chunks, nil
 }
 
 func (d *openAIStreamDecoder) toolCallResults() []domain.ToolCall {
@@ -256,42 +214,49 @@ func (d *openAIStreamDecoder) toolCallResults() []domain.ToolCall {
 	return result
 }
 
-func openAIMessages(messages []domain.Message) []map[string]any {
-	result := make([]map[string]any, 0, len(messages))
+func openAIMessages(messages []domain.Message) []openai.ChatCompletionMessageParamUnion {
+	result := make([]openai.ChatCompletionMessageParamUnion, 0, len(messages))
 	for _, message := range messages {
 		switch message.Role {
 		case domain.MessageRoleTool:
-			result = append(result, map[string]any{
-				"role":         "tool",
-				"tool_call_id": message.ToolCallID,
-				"content":      message.Content,
-			})
+			result = append(result, openai.ToolMessage(message.Content, message.ToolCallID))
 		case domain.MessageRoleAssistant:
-			converted := map[string]any{
-				"role":    "assistant",
-				"content": message.Content,
-			}
+			converted := openai.ChatCompletionMessageParamOfAssistant(message.Content)
 			if message.ToolCalls != nil {
-				var toolCalls []map[string]any
+				var toolCalls []openai.ChatCompletionMessageToolCallUnionParam
 				for _, call := range message.ToolCalls {
-					toolCalls = append(toolCalls, map[string]any{
-						"id":   call.ToolCallID,
-						"type": "function",
-						"function": map[string]any{
-							"name":      call.Name,
-							"arguments": mustJSON(call.Args),
+					toolCalls = append(toolCalls, openai.ChatCompletionMessageToolCallUnionParam{
+						OfFunction: &openai.ChatCompletionMessageFunctionToolCallParam{
+							ID: call.ToolCallID,
+							Function: openai.ChatCompletionMessageFunctionToolCallFunctionParam{
+								Name:      call.Name,
+								Arguments: mustJSON(call.Args),
+							},
 						},
 					})
 				}
-				converted["tool_calls"] = toolCalls
+				converted.OfAssistant.ToolCalls = toolCalls
 			}
 			result = append(result, converted)
+		case domain.MessageRoleSystem:
+			result = append(result, openai.SystemMessage(message.Content))
+		case domain.MessageRoleUser:
+			result = append(result, openai.UserMessage(message.Content))
 		default:
-			result = append(result, map[string]any{
-				"role":    string(message.Role),
-				"content": message.Content,
-			})
+			result = append(result, openai.UserMessage(message.Content))
 		}
+	}
+	return result
+}
+
+func openAITools(tools []domain.Tool) []openai.ChatCompletionToolUnionParam {
+	result := make([]openai.ChatCompletionToolUnionParam, 0, len(tools))
+	for _, tool := range tools {
+		result = append(result, openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
+			Name:        tool.Name,
+			Description: openai.String(tool.Description),
+			Parameters:  shared.FunctionParameters(toolSchema(tool)),
+		}))
 	}
 	return result
 }
