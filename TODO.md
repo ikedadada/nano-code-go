@@ -151,7 +151,7 @@
 - [ ] Node 版を残す場合は `nano-code-ts` などに rename するか、deprecated と明記する。
 - [ ] Go 版が main 実装になった後、不要な TypeScript dependency と Bun 設定を削除する。
 - [ ] release build 方針を決める。必要なら GoReleaser を追加する。
-- [ ] CI を Go 版に切り替える: fmt、test、race、lint。
+- [x] CI を Go 版に切り替える: fmt、test、race、lint。
 
 ## 完了条件
 
