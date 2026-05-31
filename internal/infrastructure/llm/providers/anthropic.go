@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	anthropic "github.com/anthropics/anthropic-sdk-go"
@@ -131,20 +132,25 @@ func (p *AnthropicProvider) requestParams(params domain.GenerateParams) anthropi
 }
 
 type anthropicStreamDecoder struct {
-	toolCalls      map[string]domain.ToolCall
-	partialJSON    map[string]string
-	contentIndexID map[int]string
+	toolCalls       map[string]domain.ToolCall
+	toolCallIndexes []int
+	partialJSON     map[string]string
+	contentIndexID  map[int]string
 }
 
 func (d *anthropicStreamDecoder) decode(event anthropic.MessageStreamEventUnion) ([]domain.StreamChunk, bool, error) {
 	switch event.Type {
 	case "content_block_start":
 		if event.ContentBlock.Type == "tool_use" {
+			index := int(event.Index)
 			id := event.ContentBlock.ID
-			d.contentIndexID[int(event.Index)] = id
+			d.contentIndexID[index] = id
 			args, err := objectFromAny(event.ContentBlock.Input)
 			if err != nil {
 				return nil, false, err
+			}
+			if _, exists := d.toolCalls[id]; !exists {
+				d.toolCallIndexes = append(d.toolCallIndexes, index)
 			}
 			d.toolCalls[id] = domain.ToolCall{ToolCallID: id, Name: event.ContentBlock.Name, Args: args}
 			d.partialJSON[id] = ""
@@ -186,7 +192,14 @@ func (d *anthropicStreamDecoder) decode(event anthropic.MessageStreamEventUnion)
 
 func (d *anthropicStreamDecoder) toolCallResults() []domain.ToolCall {
 	result := make([]domain.ToolCall, 0, len(d.toolCalls))
-	for _, call := range d.toolCalls {
+	indexes := append([]int(nil), d.toolCallIndexes...)
+	sort.Ints(indexes)
+	for _, index := range indexes {
+		id := d.contentIndexID[index]
+		call, ok := d.toolCalls[id]
+		if !ok {
+			continue
+		}
 		if call.Args == nil {
 			call.Args = map[string]any{}
 		}

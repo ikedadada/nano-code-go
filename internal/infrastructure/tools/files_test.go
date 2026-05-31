@@ -75,6 +75,29 @@ func TestWriteFile(t *testing.T) {
 	}
 }
 
+func TestWriteFileCreatesMissingWorkspaceRoot(t *testing.T) {
+	t.Parallel()
+
+	workspace := filepath.Join(t.TempDir(), "workspace")
+	result, err := tools.WriteFile(workspace).Execute(context.Background(), map[string]any{
+		"path":    "nested/example.txt",
+		"content": "hello fresh checkout",
+	})
+	if err != nil {
+		t.Fatalf("writeFile error = %v", err)
+	}
+	if result != "File written successfully to nested/example.txt" {
+		t.Fatalf("writeFile = %q", result)
+	}
+	content, err := os.ReadFile(filepath.Join(workspace, "nested", "example.txt"))
+	if err != nil {
+		t.Fatalf("read written file: %v", err)
+	}
+	if string(content) != "hello fresh checkout" {
+		t.Fatalf("written content = %q", content)
+	}
+}
+
 func TestWriteFileRejectsUnsafePaths(t *testing.T) {
 	t.Parallel()
 
@@ -85,6 +108,27 @@ func TestWriteFileRejectsUnsafePaths(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "Access denied") {
 		t.Fatalf("writeFile error = %v, want access denied", err)
+	}
+}
+
+func TestWriteFileRejectsSymlinkedParentOutsideWorkspace(t *testing.T) {
+	t.Parallel()
+
+	workspace := t.TempDir()
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(workspace, "link")); err != nil {
+		t.Skipf("create symlink: %v", err)
+	}
+
+	_, err := tools.WriteFile(workspace).Execute(context.Background(), map[string]any{
+		"path":    "link/nested/example.txt",
+		"content": "nope",
+	})
+	if err == nil || !strings.Contains(err.Error(), "Access denied") {
+		t.Fatalf("writeFile error = %v, want access denied", err)
+	}
+	if _, err := os.Stat(filepath.Join(outside, "nested")); !os.IsNotExist(err) {
+		t.Fatalf("outside nested directory err = %v, want not exist", err)
 	}
 }
 

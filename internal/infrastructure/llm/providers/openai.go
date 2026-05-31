@@ -127,8 +127,7 @@ func (p *OpenAIProvider) requestParams(params domain.GenerateParams) openai.Chat
 }
 
 type openAIStreamDecoder struct {
-	toolCalls map[string]*openAIStreamToolCall
-	indexKeys map[int]string
+	toolCalls map[int]*openAIStreamToolCall
 }
 
 type openAIStreamToolCall struct {
@@ -147,27 +146,14 @@ func (d *openAIStreamDecoder) decode(event openai.ChatCompletionChunk) ([]domain
 		}
 		if len(choice.Delta.ToolCalls) > 0 {
 			if d.toolCalls == nil {
-				d.toolCalls = map[string]*openAIStreamToolCall{}
-			}
-			if d.indexKeys == nil {
-				d.indexKeys = map[int]string{}
+				d.toolCalls = map[int]*openAIStreamToolCall{}
 			}
 			for _, call := range choice.Delta.ToolCalls {
 				index := int(call.Index)
-				key := call.ID
-				if key == "" {
-					key = d.indexKeys[index]
-				}
-				if key == "" {
-					key = fmt.Sprintf("%d", index)
-				}
-				if call.ID != "" {
-					d.indexKeys[index] = key
-				}
-				existing := d.toolCalls[key]
+				existing := d.toolCalls[index]
 				if existing == nil {
 					existing = &openAIStreamToolCall{}
-					d.toolCalls[key] = existing
+					d.toolCalls[index] = existing
 				}
 				if call.ID != "" {
 					existing.id = call.ID
@@ -197,14 +183,14 @@ func (d *openAIStreamDecoder) decode(event openai.ChatCompletionChunk) ([]domain
 }
 
 func (d *openAIStreamDecoder) toolCallResults() []domain.ToolCall {
-	keys := make([]string, 0, len(d.toolCalls))
-	for key := range d.toolCalls {
-		keys = append(keys, key)
+	indices := make([]int, 0, len(d.toolCalls))
+	for index := range d.toolCalls {
+		indices = append(indices, index)
 	}
-	sort.Strings(keys)
-	result := make([]domain.ToolCall, 0, len(keys))
-	for _, key := range keys {
-		call := d.toolCalls[key]
+	sort.Ints(indices)
+	result := make([]domain.ToolCall, 0, len(indices))
+	for _, index := range indices {
+		call := d.toolCalls[index]
 		args, err := parseJSONObject(call.argsText)
 		if err != nil {
 			args = map[string]any{}

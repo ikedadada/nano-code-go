@@ -107,7 +107,7 @@ func (p *GoogleProvider) Stream(ctx context.Context, params domain.GenerateParam
 }
 
 type googleStreamDecoder struct {
-	toolCalls map[string]domain.ToolCall
+	toolCalls []domain.ToolCall
 }
 
 func (d *googleStreamDecoder) decode(event *genai.GenerateContentResponse) ([]domain.StreamChunk, error) {
@@ -121,9 +121,6 @@ func (d *googleStreamDecoder) decode(event *genai.GenerateContentResponse) ([]do
 					chunks = append(chunks, domain.StreamChunk{Kind: domain.StreamKindDelta, Text: part.Text})
 				}
 				if part.FunctionCall != nil {
-					if d.toolCalls == nil {
-						d.toolCalls = map[string]domain.ToolCall{}
-					}
 					name := part.FunctionCall.Name
 					if name == "" {
 						name = "unknown_tool"
@@ -132,7 +129,7 @@ func (d *googleStreamDecoder) decode(event *genai.GenerateContentResponse) ([]do
 					if id == "" {
 						id = name
 					}
-					d.toolCalls[id] = domain.ToolCall{ToolCallID: id, Name: name, Args: part.FunctionCall.Args}
+					d.toolCalls = append(d.toolCalls, domain.ToolCall{ToolCallID: id, Name: name, Args: part.FunctionCall.Args})
 				}
 			}
 		}

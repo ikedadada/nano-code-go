@@ -133,6 +133,25 @@ func TestClient_SendMessageExtractsTaskResults(t *testing.T) {
 			want: "Ahoy, matey! Hello.",
 		},
 		{
+			name: "artifact response preferred over status message",
+			result: map[string]any{
+				"kind": "task",
+				"id":   "task-1",
+				"status": map[string]any{
+					"state": "completed",
+					"message": map[string]any{
+						"kind":  "message",
+						"role":  "agent",
+						"parts": []map[string]string{{"kind": "text", "text": "Still working..."}},
+					},
+				},
+				"artifacts": []map[string]any{{
+					"parts": []map[string]string{{"kind": "text", "text": "Final artifact answer."}},
+				}},
+			},
+			want: "Final artifact answer.",
+		},
+		{
 			name: "agent history",
 			result: map[string]any{
 				"kind": "task",

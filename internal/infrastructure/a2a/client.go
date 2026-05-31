@@ -132,9 +132,10 @@ func extractMessageSendResultText(result any) (text string, resultErr string, ok
 		return text, "", text != ""
 	}
 
+	var statusText string
 	if status, _ := record["status"].(map[string]any); status != nil {
 		state := normalizeTaskState(status["state"])
-		statusText := textFromMessage(status["message"])
+		statusText = textFromMessage(status["message"])
 		if isTerminalFailureState(state) {
 			if statusText != "" {
 				return "", statusText, true
@@ -144,13 +145,13 @@ func extractMessageSendResultText(result any) (text string, resultErr string, ok
 		if isNonTerminalState(state) {
 			return "", "task is not completed: " + state, true
 		}
-		if statusText != "" {
-			return statusText, "", true
-		}
 	}
 
 	if text := textFromArtifacts(record["artifacts"]); text != "" {
 		return text, "", true
+	}
+	if statusText != "" {
+		return statusText, "", true
 	}
 	if text := textFromHistory(record["history"]); text != "" {
 		return text, "", true

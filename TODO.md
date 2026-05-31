@@ -162,6 +162,15 @@
 - [x] Google provider を公式 SDK 実装へ置き換え、Gemini API の function calling と streaming 変換を維持する。
 - [x] SDK 追加後に `go mod verify`、`govulncheck ./...`、`go test ./...`、`go test -race ./...` を必須検証として実行する。
 
+## Review follow-up: 互換性バグ修正
+
+- [x] `internal/infrastructure/tools/path.go` の writable path 解決で、`./workspace` が存在しない fresh checkout でも `writeFile` が `workspace/nested/file` を作成できるようにする。workspace root の symlink 解決前に必要な directory を作成し、TypeScript 実装と同じ挙動に揃える。
+- [x] `internal/infrastructure/a2a/client.go` の A2A task result 抽出で、completed response に `status.message` と `artifacts` が両方ある場合は artifact text を優先する。status message は進捗や要約の可能性があるため、TypeScript 実装と同じ優先順位にする。
+- [x] `internal/infrastructure/llm/providers/openai.go` の streaming tool call 集約で、OpenAI の streamed `index` / model order を保持する。buffer key の文字列 sort による順序入れ替わりを避け、複数 tool call の実行順がモデル出力順になるようにする。
+- [x] `internal/infrastructure/llm/providers/anthropic.go` の streaming `tool_use` 集約で、map iteration に依存せず content block order を保持する。複数 tool call がある場合も side effect の順序が nondeterministic にならないようにする。
+- [x] `internal/infrastructure/llm/providers/google.go` の streaming function call 集約で、Gemini の `Content.Parts` sequence を保持する。map iteration による順序喪失を避け、tool call slice をモデル出力順で返す。
+- [x] 上記修正ごとに Go test を追加または更新し、fresh workspace write、A2A artifact 優先、各 provider の複数 streaming tool call 順序を回帰テストする。
+
 ## 完了条件
 
 - [x] CLI で既存と同じ prompt 実行、tool call、approval、streaming が動く。

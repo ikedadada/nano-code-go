@@ -562,6 +562,115 @@ func TestProviderStreams(t *testing.T) {
 	}
 }
 
+func TestOpenAIProviderStreamPreservesToolCallIndexOrder(t *testing.T) {
+	t.Parallel()
+
+	streamBody := strings.Join([]string{
+		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"z-call","function":{"name":"firstTool","arguments":"{\"seq\""}},{"index":1,"id":"a-call","function":{"name":"secondTool","arguments":"{\"seq\""}}]}}]}`,
+		`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":1}"}},{"index":1,"function":{"arguments":":2}"}}]},"finish_reason":"tool_calls"}]}`,
+		`data: {"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}`,
+		`data: [DONE]`,
+		``,
+	}, "\n")
+
+	model := providers.NewOpenAI("gpt-test", providers.Config{
+		APIKey:  "test-key",
+		BaseURL: "https://openai.test/v1",
+		Client: llmDoer(func(request *http.Request) (*http.Response, error) {
+			return streamResponse(http.StatusOK, streamBody), nil
+		}),
+	})
+
+	result, err := generation.CollectStreamResult(context.Background(), generation.CollectStreamParams{
+		Model:          model,
+		GenerateParams: sampleParams(),
+	})
+	if err != nil {
+		t.Fatalf("CollectStreamResult() error = %v", err)
+	}
+
+	want := []domain.ToolCall{
+		{ToolCallID: "z-call", Name: "firstTool", Args: map[string]any{"seq": float64(1)}},
+		{ToolCallID: "a-call", Name: "secondTool", Args: map[string]any{"seq": float64(2)}},
+	}
+	if !reflect.DeepEqual(result.ToolCalls, want) {
+		t.Fatalf("tool calls = %#v, want %#v", result.ToolCalls, want)
+	}
+}
+
+func TestAnthropicProviderStreamPreservesMultipleToolCallOrder(t *testing.T) {
+	t.Parallel()
+
+	model := providers.NewAnthropic("claude-test", providers.Config{
+		APIKey:  "test-key",
+		BaseURL: "https://anthropic.test/v1",
+		Client: llmDoer(func(request *http.Request) (*http.Response, error) {
+			return streamResponse(http.StatusOK, strings.Join([]string{
+				`event: content_block_delta` + "\n" + `data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"plan"}}`,
+				`event: content_block_start` + "\n" + `data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call-z","name":"searchFiles","input":{}}}`,
+				`event: content_block_delta` + "\n" + `data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"query\":\"first\"}"}}`,
+				`event: content_block_start` + "\n" + `data: {"type":"content_block_start","index":2,"content_block":{"type":"tool_use","id":"call-a","name":"readFile","input":{}}}`,
+				`event: content_block_delta` + "\n" + `data: {"type":"content_block_delta","index":2,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"second.txt\"}"}}`,
+				`event: message_delta` + "\n" + `data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"input_tokens":1,"output_tokens":2}}`,
+				`event: message_stop` + "\n" + `data: {"type":"message_stop"}`,
+			}, "\n\n")), nil
+		}),
+	})
+
+	result, err := generation.CollectStreamResult(context.Background(), generation.CollectStreamParams{
+		Model:          model,
+		GenerateParams: sampleParams(),
+	})
+	if err != nil {
+		t.Fatalf("CollectStreamResult() error = %v", err)
+	}
+
+	want := []domain.ToolCall{
+		{ToolCallID: "call-z", Name: "searchFiles", Args: map[string]any{"query": "first"}},
+		{ToolCallID: "call-a", Name: "readFile", Args: map[string]any{"path": "second.txt"}},
+	}
+	if !reflect.DeepEqual(result.ToolCalls, want) {
+		t.Fatalf("tool calls = %#v, want %#v", result.ToolCalls, want)
+	}
+	if result.FinishReason != domain.FinishReasonToolCall {
+		t.Fatalf("finish reason = %q, want %q", result.FinishReason, domain.FinishReasonToolCall)
+	}
+}
+
+func TestGoogleProviderStreamPreservesMultipleToolCallOrder(t *testing.T) {
+	t.Parallel()
+
+	model := providers.NewGoogle("gemini-test", providers.Config{
+		APIKey:  "test-key",
+		BaseURL: "https://google.test/v1beta",
+		Client: llmDoer(func(request *http.Request) (*http.Response, error) {
+			return streamResponse(http.StatusOK, strings.Join([]string{
+				`data: {"candidates":[{"content":{"parts":[{"text":"plan"},{"functionCall":{"id":"call-z","name":"searchFiles","args":{"query":"first"}}},{"functionCall":{"id":"call-a","name":"readFile","args":{"path":"second.txt"}}}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":2,"totalTokenCount":3}}`,
+				``,
+			}, "\n")), nil
+		}),
+	})
+
+	result, err := generation.CollectStreamResult(context.Background(), generation.CollectStreamParams{
+		Model:          model,
+		GenerateParams: sampleParams(),
+	})
+	if err != nil {
+		t.Fatalf("CollectStreamResult() error = %v", err)
+	}
+
+	want := []domain.ToolCall{
+		{ToolCallID: "call-z", Name: "searchFiles", Args: map[string]any{"query": "first"}},
+		{ToolCallID: "call-a", Name: "readFile", Args: map[string]any{"path": "second.txt"}},
+	}
+	if !reflect.DeepEqual(result.ToolCalls, want) {
+		t.Fatalf("tool calls = %#v, want %#v", result.ToolCalls, want)
+	}
+	if result.FinishReason != domain.FinishReasonToolCall {
+		t.Fatalf("finish reason = %q, want %q", result.FinishReason, domain.FinishReasonToolCall)
+	}
+}
+
 func withClient(model domain.LanguageModel, client providers.HTTPDoer) domain.LanguageModel {
 	switch typed := model.(type) {
 	case *providers.OpenAIProvider:
