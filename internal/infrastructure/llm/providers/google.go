@@ -222,10 +222,21 @@ func googleTools(tools []domain.Tool) []*genai.Tool {
 		declarations = append(declarations, &genai.FunctionDeclaration{
 			Name:                 tool.Name,
 			Description:          tool.Description,
-			ParametersJsonSchema: toolSchema(tool),
+			ParametersJsonSchema: googleToolSchema(tool),
 		})
 	}
 	return []*genai.Tool{{FunctionDeclarations: declarations}}
+}
+
+func googleToolSchema(tool domain.Tool) map[string]any {
+	schema := map[string]any{"type": tool.Parameters.Type}
+	if tool.Parameters.Properties != nil {
+		schema["properties"] = tool.Parameters.Properties
+	}
+	if tool.Parameters.Required != nil {
+		schema["required"] = tool.Parameters.Required
+	}
+	return schema
 }
 
 func googleUsage(usage *genai.GenerateContentResponseUsageMetadata) domain.Usage {

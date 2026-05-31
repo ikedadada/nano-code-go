@@ -241,10 +241,21 @@ func openAITools(tools []domain.Tool) []openai.ChatCompletionToolUnionParam {
 		result = append(result, openai.ChatCompletionFunctionTool(shared.FunctionDefinitionParam{
 			Name:        tool.Name,
 			Description: openai.String(tool.Description),
-			Parameters:  shared.FunctionParameters(toolSchema(tool)),
+			Parameters:  shared.FunctionParameters(openAIToolSchema(tool)),
 		}))
 	}
 	return result
+}
+
+func openAIToolSchema(tool domain.Tool) map[string]any {
+	schema := map[string]any{"type": tool.Parameters.Type}
+	if tool.Parameters.Properties != nil {
+		schema["properties"] = tool.Parameters.Properties
+	}
+	if tool.Parameters.Required != nil {
+		schema["required"] = tool.Parameters.Required
+	}
+	return schema
 }
 
 func openAIFinishReason(reason string) domain.FinishReason {

@@ -183,6 +183,12 @@
 - [x] SDK 化前の未使用 HTTP helper (`postJSON` / `streamJSON` など) を削除し、provider package には現在使う helper だけを残す。
 - [x] provider tests の HTTP fake は test helper の `RoundTripper` として実装し、production package にテスト都合の interface を置かない形にする。
 
+## Review follow-up: provider helper の責務整理
+
+- [x] `internal/infrastructure/llm/providers/http.go` を削除し、`Config` は `config.go`、stream channel helper は `stream.go` に分割する。
+- [x] OpenAI と Google で共有していた `toolSchema` を削除し、各 provider の schema 変換を provider 実装内に移す。
+- [x] 上記リファクタ後に provider tests と全体 Go test / vet / race を通し、挙動差分がないことを確認する。
+
 ## 完了条件
 
 - [x] CLI で既存と同じ prompt 実行、tool call、approval、streaming が動く。
