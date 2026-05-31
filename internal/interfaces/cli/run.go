@@ -44,7 +44,8 @@ type RunAgentRequest struct {
 }
 
 type RunAgentResponse struct {
-	Text string
+	Text     string
+	Streamed bool
 }
 
 type AgentRunner func(ctx context.Context, request RunAgentRequest) (RunAgentResponse, error)
@@ -125,7 +126,9 @@ func runWithRunner(ctx context.Context, args []string, stdout, stderr io.Writer,
 	if err != nil {
 		return err
 	}
-	log.Output(result.Text)
+	if !result.Streamed {
+		log.Output(result.Text)
+	}
 	return nil
 }
 

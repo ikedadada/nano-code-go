@@ -140,7 +140,7 @@ func TestRunWithRunnerSmokeYoloFakeAgent(t *testing.T) {
 			if err != nil {
 				return RunAgentResponse{}, err
 			}
-			return RunAgentResponse{Text: result.Text}, nil
+			return RunAgentResponse{Text: result.Text, Streamed: request.Streaming}, nil
 		},
 	)
 	if err != nil {
@@ -182,13 +182,13 @@ func TestRunWithRunnerSmokeStreamingFakeAgent(t *testing.T) {
 			if err != nil {
 				return RunAgentResponse{}, err
 			}
-			return RunAgentResponse{Text: result.Text}, nil
+			return RunAgentResponse{Text: result.Text, Streamed: request.Streaming}, nil
 		},
 	)
 	if err != nil {
 		t.Fatalf("runWithRunner() error = %v", err)
 	}
-	if stdout.String() != "streamedstreamed\n" {
+	if stdout.String() != "streamed" {
 		t.Fatalf("stdout = %q", stdout.String())
 	}
 }

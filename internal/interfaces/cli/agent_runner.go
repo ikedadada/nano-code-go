@@ -2,19 +2,9 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"io"
-	"net/http"
-	"time"
 
-	"nano-code-go/internal/application/agent"
-	"nano-code-go/internal/config"
-	"nano-code-go/internal/infrastructure/a2a"
-	"nano-code-go/internal/infrastructure/approval"
-	"nano-code-go/internal/infrastructure/llm/providers"
-	"nano-code-go/internal/infrastructure/process"
-	"nano-code-go/internal/infrastructure/prompts"
-	"nano-code-go/internal/infrastructure/tools"
+	"nano-code-go/internal/agentruntime"
 )
 
 func runAgentWithIO(
@@ -36,84 +26,25 @@ func RunAgentWithIO(
 	stderr io.Writer,
 	env Env,
 ) (RunAgentResponse, error) {
-	cfg := config.Default()
-	cfg.Sandbox = request.Sandbox
-	cfg = cfg.WithAllowedDomains(request.AllowedDomains)
-
-	model, err := providers.CreateModelFromEnv(providers.FactoryOptions{
-		Env: providerEnv(env),
-	})
+	result, err := agentruntime.RunAgentWithIO(ctx, agentruntime.RunAgentRequest{
+		Prompt:         request.Prompt,
+		IssueDriven:    request.IssueDriven,
+		Streaming:      request.Streaming,
+		Yolo:           request.Yolo,
+		Sandbox:        request.Sandbox,
+		AllowedDomains: request.AllowedDomains,
+		WorkspaceRoot:  request.WorkspaceRoot,
+	}, stdin, stdout, stderr, agentRuntimeEnv(env))
 	if err != nil {
 		return RunAgentResponse{}, err
 	}
-
-	instructions, err := prompts.LoadInstructions(request.WorkspaceRoot, request.IssueDriven)
-	if err != nil {
-		return RunAgentResponse{}, err
-	}
-
-	sources, err := a2a.LoadAgentSources("", stringEnv(env))
-	if err != nil {
-		return RunAgentResponse{}, err
-	}
-
-	registry := a2a.Discover(ctx, sources, a2a.NewClient(&http.Client{Timeout: 5 * time.Second}), stderr)
-	approvalPolicy := approval.ReadlinePolicy{In: stdin, Out: stderr}.Request
-	if request.Yolo {
-		approvalPolicy = approval.AllowAll
-	}
-	var commandRunner tools.CommandRunner
-	if request.Sandbox {
-		commandRunner = process.NewSandboxRunner(safeSandboxEnv(env), false, nil)
-	}
-
-	nanoAgent := agent.New(agent.Config{
-		Name:         "nano-code",
-		Model:        model,
-		Instructions: instructions,
-		Tools: tools.CreateTools(tools.Options{
-			WorkspaceRoot:  request.WorkspaceRoot,
-			AllowedDomains: cfg.AllowedDomains,
-			CommandRunner:  commandRunner,
-		}, registry),
-		MaxSteps:     20,
-		UseStreaming: request.Streaming,
-		Approval:     approvalPolicy,
-		Output:       stdout,
-	})
-
-	result, err := nanoAgent.Generate(ctx, request.Prompt)
-	if err != nil {
-		return RunAgentResponse{}, fmt.Errorf("run agent: %w", err)
-	}
-	return RunAgentResponse{Text: result.Text}, nil
+	return RunAgentResponse{Text: result.Text, Streamed: result.Streamed}, nil
 }
 
-func providerEnv(env Env) providers.Env {
-	result := make(providers.Env, len(env))
+func agentRuntimeEnv(env Env) agentruntime.Env {
+	result := make(agentruntime.Env, len(env))
 	for key, value := range env {
 		result[key] = value
-	}
-	return result
-}
-
-func stringEnv(env Env) map[string]string {
-	result := make(map[string]string, len(env))
-	for key, value := range env {
-		result[key] = value
-	}
-	return result
-}
-
-func safeSandboxEnv(env Env) map[string]string {
-	result := map[string]string{}
-	if env["PATH"] != "" {
-		result["PATH"] = env["PATH"]
-	}
-	if env["LANG"] != "" {
-		result["LANG"] = env["LANG"]
-	} else {
-		result["LANG"] = "C.UTF-8"
 	}
 	return result
 }

@@ -171,6 +171,12 @@
 - [x] `internal/infrastructure/llm/providers/google.go` の streaming function call 集約で、Gemini の `Content.Parts` sequence を保持する。map iteration による順序喪失を避け、tool call slice をモデル出力順で返す。
 - [x] 上記修正ごとに Go test を追加または更新し、fresh workspace write、A2A artifact 優先、各 provider の複数 streaming tool call 順序を回帰テストする。
 
+## Review follow-up: 責務分離と Go 実装改善
+
+- [x] CLI streaming 時に delta 出力と最終 `result.Text` 出力が重複しないようにする。streaming mode では `Agent` が逐次出力した内容を CLI が再出力しない設計にする。
+- [x] A2A interface が CLI interface に依存しないよう、共通の agent wiring を interface 層の外へ切り出す。CLI と A2A はそれぞれ同じ runtime runner へ依存する形にする。
+- [x] 上記修正の Go test を追加または更新し、streaming stdout が一度だけ出ることと A2A/CLI の wiring が維持されることを検証する。
+
 ## 完了条件
 
 - [x] CLI で既存と同じ prompt 実行、tool call、approval、streaming が動く。

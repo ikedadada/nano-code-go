@@ -14,9 +14,9 @@ import (
 	"strings"
 	"time"
 
+	"nano-code-go/internal/agentruntime"
 	appa2a "nano-code-go/internal/application/a2a"
 	"nano-code-go/internal/domain"
-	cliiface "nano-code-go/internal/interfaces/cli"
 )
 
 type Env map[string]string
@@ -128,7 +128,7 @@ func Run(ctx context.Context, stdout, stderr io.Writer, env Env) error {
 
 func defaultRunAgent(stderr io.Writer, env Env) appa2a.RunAgent {
 	return func(ctx context.Context, request appa2a.RunAgentRequest) (appa2a.RunAgentResponse, error) {
-		result, err := cliiface.RunAgentWithIO(ctx, cliiface.RunAgentRequest{
+		result, err := agentruntime.RunAgentWithIO(ctx, agentruntime.RunAgentRequest{
 			Prompt:         request.Prompt,
 			IssueDriven:    request.IssueDriven,
 			Streaming:      request.Streaming,
@@ -136,7 +136,7 @@ func defaultRunAgent(stderr io.Writer, env Env) appa2a.RunAgent {
 			Sandbox:        request.Sandbox,
 			AllowedDomains: request.AllowedDomains,
 			WorkspaceRoot:  request.WorkspaceRoot,
-		}, strings.NewReader(""), io.Discard, stderr, cliEnv(env))
+		}, strings.NewReader(""), io.Discard, stderr, agentRuntimeEnv(env))
 		if err != nil {
 			return appa2a.RunAgentResponse{}, err
 		}
@@ -144,8 +144,8 @@ func defaultRunAgent(stderr io.Writer, env Env) appa2a.RunAgent {
 	}
 }
 
-func cliEnv(env Env) cliiface.Env {
-	result := make(cliiface.Env, len(env))
+func agentRuntimeEnv(env Env) agentruntime.Env {
+	result := make(agentruntime.Env, len(env))
 	for key, value := range env {
 		result[key] = value
 	}
