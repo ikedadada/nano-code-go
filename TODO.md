@@ -139,7 +139,7 @@
 - [x] `go test -race ./...` を concurrency を含む package で実行する。
 - [ ] `golangci-lint run` を通す。
 - [x] provider 変換の golden test を追加し、tool schema と message 変換の regressions を防ぐ。
-- [ ] CLI smoke test を追加する: yolo + fake model + fake tool。
+- [x] CLI smoke test を追加する: yolo + fake model + fake tool。
 - [x] A2A smoke test を追加する: agent card fetch と message/send。
 - [ ] network/API key が必要な integration test は build tag または env guard で通常 test から分離する。
 
