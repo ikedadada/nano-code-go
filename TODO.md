@@ -148,9 +148,9 @@
 - [x] Go 版 README を更新し、Node/Bun 前提の手順を Go 手順に置き換える。
 - [x] `bun run agent` 相当の `go run ./cmd/nano-code` または binary 実行例を記載する。
 - [x] `bun run a2a` 相当の `go run ./cmd/nano-code-a2a` または binary 実行例を記載する。
-- [ ] Node 版を残す場合は `nano-code-ts` などに rename するか、deprecated と明記する。
+- [x] Node 版を残す場合は `nano-code-ts` などに rename するか、deprecated と明記する。
 - [ ] Go 版が main 実装になった後、不要な TypeScript dependency と Bun 設定を削除する。
-- [ ] release build 方針を決める。必要なら GoReleaser を追加する。
+- [x] release build 方針を決める。必要なら GoReleaser を追加する。
 - [x] CI を Go 版に切り替える: fmt、test、race、lint。
 
 ## 完了条件

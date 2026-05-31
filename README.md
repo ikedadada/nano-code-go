@@ -90,6 +90,25 @@ automatically granted for authenticated requests.
 `TODO.md` is the migration checklist. Detailed compatibility tables are in
 [docs/migration.md](docs/migration.md).
 
+## Legacy TypeScript Implementation
+
+The TypeScript implementation under `./nano-code` is deprecated and kept only
+as a compatibility reference during the Go migration. New runtime changes should
+target the Go commands in `./cmd`.
+
+## Release Build
+
+The current release build policy is to produce the two CLI binaries directly
+with `go build`:
+
+```sh
+make build
+```
+
+This writes `bin/nano-code` and `bin/nano-code-a2a`. GoReleaser is not required
+yet; it can be added later if tagged multi-platform archives or generated
+release notes are needed.
+
 ## Development
 
 Useful commands:
@@ -99,9 +118,11 @@ make fmt
 make test
 make race
 make lint
+make build
 make run
 make run-a2a
 ```
 
 `make test` runs `go test ./...`. `make race` runs `go test -race ./...`.
-`make lint` expects `golangci-lint` to be installed.
+`make lint` expects `golangci-lint` to be installed. `make build` writes
+ignored binaries under `bin/`.

@@ -1,6 +1,7 @@
 /nano-code/
 
 # Go build/test outputs
+/bin/
 /nano-code-go
 /nano-code-a2a
 *.test
