@@ -153,6 +153,15 @@
 - [x] release build 方針を決める。必要なら GoReleaser を追加する。
 - [x] CI を Go 版に切り替える: `gofmt`、`go vet`、`go test`、`go test -race`。
 
+## Phase 12: SDK 化と依存脆弱性管理
+
+- [x] 公式 Go SDK の有無を確認する: OpenAI `github.com/openai/openai-go/v3`、Anthropic `github.com/anthropics/anthropic-sdk-go`、Gemini `google.golang.org/genai`。
+- [x] CI に `govulncheck ./...` を追加し、既知脆弱性を pull request と main push で検出する。
+- [ ] OpenAI provider を公式 SDK 実装へ置き換え、`domain.LanguageModel` 境界と既存の message/tool/usage 変換を維持する。
+- [ ] Anthropic provider を公式 SDK 実装へ置き換え、Messages API の tool use と streaming event 変換を維持する。
+- [ ] Google provider を公式 SDK 実装へ置き換え、Gemini API の function calling と streaming 変換を維持する。
+- [ ] SDK 追加後に `go mod verify`、`govulncheck ./...`、`go test ./...`、`go test -race ./...` を必須検証として実行する。
+
 ## 完了条件
 
 - [x] CLI で既存と同じ prompt 実行、tool call、approval、streaming が動く。
@@ -160,4 +169,5 @@
 - [x] OpenAI、Anthropic、Google の provider factory が既存 env var で動く。
 - [x] local tools と remote A2A tools の tool name/schema が既存互換である。
 - [x] `go test ./...` と Go 標準チェックが通る。
+- [x] CI で `govulncheck ./...` による既知脆弱性検査を実行する。
 - [x] README の利用手順が Go 版だけで完結している。

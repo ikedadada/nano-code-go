@@ -1,7 +1,8 @@
-.PHONY: fmt test race lint build run run-a2a
+.PHONY: fmt test race lint vuln build run run-a2a
 
 GO ?= go
 GOCACHE ?= /tmp/go-build
+GOVULNCHECK ?= govulncheck
 
 fmt:
 	gofmt -w ./cmd ./internal
@@ -19,6 +20,9 @@ lint:
 		exit 1; \
 	fi
 	GOCACHE=$(GOCACHE) $(GO) vet ./...
+
+vuln:
+	GOCACHE=$(GOCACHE) $(GOVULNCHECK) ./...
 
 build:
 	GOCACHE=$(GOCACHE) $(GO) build -o bin/nano-code ./cmd/nano-code

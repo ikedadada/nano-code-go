@@ -118,6 +118,7 @@ make fmt
 make test
 make race
 make lint
+make vuln
 make build
 make run
 make run-a2a
@@ -125,7 +126,8 @@ make run-a2a
 
 `make test` runs `go test ./...`. `make race` runs `go test -race ./...`.
 `make lint` uses only Go standard tooling: it checks `gofmt` output and runs
-`go vet ./...`. `make build` writes ignored binaries under `bin/`.
+`go vet ./...`. `make vuln` runs `govulncheck ./...` and requires
+`govulncheck` on `PATH`. `make build` writes ignored binaries under `bin/`.
 
 Provider integration tests are excluded from the default test suite because
 they require network access and API keys. Run them explicitly with:
