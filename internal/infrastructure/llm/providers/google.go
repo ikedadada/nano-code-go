@@ -2,6 +2,7 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -112,8 +113,111 @@ func (p *GoogleProvider) Generate(ctx context.Context, params domain.GeneratePar
 	}, nil
 }
 
-func (p *GoogleProvider) Stream(context.Context, domain.GenerateParams) (<-chan domain.StreamChunk, error) {
-	return unsupportedStream("google")
+func (p *GoogleProvider) Stream(ctx context.Context, params domain.GenerateParams) (<-chan domain.StreamChunk, error) {
+	config := map[string]any{
+		"systemInstruction": googleSystemInstruction(params.Messages),
+	}
+	if params.Temperature != nil {
+		config["temperature"] = *params.Temperature
+	}
+	if params.MaxTokens != nil {
+		config["maxOutputTokens"] = *params.MaxTokens
+	}
+	if len(params.Tools) > 0 {
+		var declarations []map[string]any
+		for _, tool := range params.Tools {
+			declarations = append(declarations, map[string]any{
+				"name":                 tool.Name,
+				"description":          tool.Description,
+				"parametersJsonSchema": toolSchema(tool),
+			})
+		}
+		config["tools"] = []map[string]any{{"functionDeclarations": declarations}}
+	}
+	request := map[string]any{
+		"contents": googleMessages(params.Messages),
+		"config":   config,
+	}
+
+	decoder := &googleStreamDecoder{}
+	endpoint := fmt.Sprintf("%s/models/%s:streamGenerateContent?alt=sse&key=%s", p.baseURL, p.modelID, p.apiKey)
+	return streamJSON(ctx, p.client, endpoint, nil, request, "google", decoder.decode)
+}
+
+type googleStreamDecoder struct {
+	toolCalls map[string]domain.ToolCall
+}
+
+func (d *googleStreamDecoder) decode(data []byte) ([]domain.StreamChunk, bool, error) {
+	var event struct {
+		Candidates []struct {
+			FinishReason string `json:"finishReason"`
+			Content      struct {
+				Parts []struct {
+					Text         string `json:"text"`
+					FunctionCall *struct {
+						Name string         `json:"name"`
+						Args map[string]any `json:"args"`
+					} `json:"functionCall"`
+				} `json:"parts"`
+			} `json:"content"`
+		} `json:"candidates"`
+		UsageMetadata *struct {
+			PromptTokenCount     int `json:"promptTokenCount"`
+			CandidatesTokenCount int `json:"candidatesTokenCount"`
+			TotalTokenCount      int `json:"totalTokenCount"`
+		} `json:"usageMetadata"`
+	}
+	if err := json.Unmarshal(data, &event); err != nil {
+		return nil, false, fmt.Errorf("decode google stream event: %w", err)
+	}
+
+	var chunks []domain.StreamChunk
+	var finishReason domain.FinishReason
+	if len(event.Candidates) > 0 {
+		candidate := event.Candidates[0]
+		for _, part := range candidate.Content.Parts {
+			if part.Text != "" {
+				chunks = append(chunks, domain.StreamChunk{Kind: domain.StreamKindDelta, Text: part.Text})
+			}
+			if part.FunctionCall != nil {
+				if d.toolCalls == nil {
+					d.toolCalls = map[string]domain.ToolCall{}
+				}
+				name := part.FunctionCall.Name
+				if name == "" {
+					name = "unknown_tool"
+				}
+				d.toolCalls[name] = domain.ToolCall{ToolCallID: name, Name: name, Args: part.FunctionCall.Args}
+			}
+		}
+		if candidate.FinishReason != "" {
+			finishReason = googleFinishReason(candidate.FinishReason, len(d.toolCalls) > 0)
+		}
+	}
+	if finishReason != "" || event.UsageMetadata != nil {
+		done := domain.StreamChunk{Kind: domain.StreamKindDone, FinishReason: finishReason, ToolCalls: d.toolCallResults()}
+		if event.UsageMetadata != nil {
+			done.Usage = domain.Usage{
+				PromptTokens:     event.UsageMetadata.PromptTokenCount,
+				CompletionTokens: event.UsageMetadata.CandidatesTokenCount,
+				TotalTokens:      event.UsageMetadata.TotalTokenCount,
+			}
+		}
+		chunks = append(chunks, done)
+	}
+	return chunks, false, nil
+}
+
+func (d *googleStreamDecoder) toolCallResults() []domain.ToolCall {
+	result := make([]domain.ToolCall, 0, len(d.toolCalls))
+	for _, call := range d.toolCalls {
+		if call.Args == nil {
+			call.Args = map[string]any{}
+		}
+		result = append(result, call)
+	}
+	return result
 }
 
 func googleSystemInstruction(messages []domain.Message) string {

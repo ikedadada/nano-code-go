@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"nano-code-go/internal/application/generation"
 	"nano-code-go/internal/domain"
 	"nano-code-go/internal/infrastructure/llm/providers"
 )
@@ -448,19 +449,109 @@ func TestProviderRequestGoldens(t *testing.T) {
 	}
 }
 
-func TestProvidersStreamUnsupported(t *testing.T) {
+func TestProviderStreams(t *testing.T) {
 	t.Parallel()
 
-	providersToTest := []domain.LanguageModel{
-		providers.NewOpenAI("model", providers.Config{}),
-		providers.NewAnthropic("model", providers.Config{}),
-		providers.NewGoogle("model", providers.Config{}),
+	tests := []struct {
+		name       string
+		model      func(providers.HTTPDoer) domain.LanguageModel
+		streamBody string
+		assertURL  string
+		want       domain.GenerateTextResult
+	}{
+		{
+			name: "openai",
+			model: func(client providers.HTTPDoer) domain.LanguageModel {
+				return providers.NewOpenAI("gpt-test", providers.Config{APIKey: "test-key", BaseURL: "https://openai.test/v1", Client: client})
+			},
+			assertURL: "https://openai.test/v1/chat/completions",
+			streamBody: strings.Join([]string{
+				`data: {"choices":[{"delta":{"content":"hel"}}]}`,
+				`data: {"choices":[{"delta":{"content":"lo"}}]}`,
+				`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call-1","function":{"name":"readFile","arguments":"{\"path\""}}]}}]}`,
+				`data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":":\"a.txt\"}"}}]},"finish_reason":"tool_calls"}]}`,
+				`data: {"choices":[],"usage":{"prompt_tokens":1,"completion_tokens":2,"total_tokens":3}}`,
+				`data: [DONE]`,
+				``,
+			}, "\n"),
+			want: domain.GenerateTextResult{
+				Text:         "hello",
+				FinishReason: domain.FinishReasonToolCall,
+				ToolCalls:    []domain.ToolCall{{ToolCallID: "call-1", Name: "readFile", Args: map[string]any{"path": "a.txt"}}},
+				Usage:        domain.Usage{PromptTokens: 1, CompletionTokens: 2, TotalTokens: 3},
+			},
+		},
+		{
+			name: "anthropic",
+			model: func(client providers.HTTPDoer) domain.LanguageModel {
+				return providers.NewAnthropic("claude-test", providers.Config{APIKey: "test-key", BaseURL: "https://anthropic.test/v1", Client: client})
+			},
+			assertURL: "https://anthropic.test/v1/messages",
+			streamBody: strings.Join([]string{
+				`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hel"}}`,
+				`data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"lo"}}`,
+				`data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"call-1","name":"readFile","input":{}}}`,
+				`data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"a.txt\"}"}}`,
+				`data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"input_tokens":1,"output_tokens":2}}`,
+				`data: {"type":"message_stop"}`,
+				``,
+			}, "\n"),
+			want: domain.GenerateTextResult{
+				Text:         "hello",
+				FinishReason: domain.FinishReasonToolCall,
+				ToolCalls:    []domain.ToolCall{{ToolCallID: "call-1", Name: "readFile", Args: map[string]any{"path": "a.txt"}}},
+				Usage:        domain.Usage{PromptTokens: 1, CompletionTokens: 2, TotalTokens: 3},
+			},
+		},
+		{
+			name: "google",
+			model: func(client providers.HTTPDoer) domain.LanguageModel {
+				return providers.NewGoogle("gemini-test", providers.Config{APIKey: "test-key", BaseURL: "https://google.test/v1beta", Client: client})
+			},
+			assertURL: "https://google.test/v1beta/models/gemini-test:streamGenerateContent?alt=sse&key=test-key",
+			streamBody: strings.Join([]string{
+				`data: {"candidates":[{"content":{"parts":[{"text":"hel"}]}}]}`,
+				`data: {"candidates":[{"content":{"parts":[{"text":"lo"},{"functionCall":{"name":"readFile","args":{"path":"a.txt"}}}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":1,"candidatesTokenCount":2,"totalTokenCount":3}}`,
+				``,
+			}, "\n"),
+			want: domain.GenerateTextResult{
+				Text:         "hello",
+				FinishReason: domain.FinishReasonToolCall,
+				ToolCalls:    []domain.ToolCall{{ToolCallID: "readFile", Name: "readFile", Args: map[string]any{"path": "a.txt"}}},
+				Usage:        domain.Usage{PromptTokens: 1, CompletionTokens: 2, TotalTokens: 3},
+			},
+		},
 	}
-	for _, provider := range providersToTest {
-		_, err := provider.Stream(context.Background(), domain.GenerateParams{})
-		if err == nil || !strings.Contains(err.Error(), "streaming is not implemented") {
-			t.Fatalf("Stream() error = %v, want unsupported streaming", err)
-		}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var requestBody map[string]any
+			model := tt.model(llmDoer(func(request *http.Request) (*http.Response, error) {
+				if request.URL.String() != tt.assertURL {
+					t.Fatalf("url = %q, want %q", request.URL.String(), tt.assertURL)
+				}
+				if err := json.NewDecoder(request.Body).Decode(&requestBody); err != nil {
+					t.Fatalf("decode request: %v", err)
+				}
+				return streamResponse(http.StatusOK, tt.streamBody), nil
+			}))
+
+			result, err := generation.CollectStreamResult(context.Background(), generation.CollectStreamParams{
+				Model:          model,
+				GenerateParams: sampleParams(),
+			})
+			if err != nil {
+				t.Fatalf("CollectStreamResult() error = %v", err)
+			}
+			if requestBody["stream"] != true && tt.name != "google" {
+				t.Fatalf("stream = %#v", requestBody["stream"])
+			}
+			if !reflect.DeepEqual(result, tt.want) {
+				t.Fatalf("result = %#v, want %#v", result, tt.want)
+			}
+		})
 	}
 }
 
@@ -552,6 +643,15 @@ func jsonResponse(t *testing.T, status int, value any) *http.Response {
 		Status:     fmt.Sprintf("%d %s", status, http.StatusText(status)),
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(bytes.NewReader(body)),
+	}
+}
+
+func streamResponse(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Status:     fmt.Sprintf("%d %s", status, http.StatusText(status)),
+		Header:     http.Header{"Content-Type": []string{"text/event-stream"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
 	}
 }
 

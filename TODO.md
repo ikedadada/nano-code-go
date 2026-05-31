@@ -155,7 +155,7 @@
 
 ## 完了条件
 
-- [ ] CLI で既存と同じ prompt 実行、tool call、approval、streaming が動く。
+- [x] CLI で既存と同じ prompt 実行、tool call、approval、streaming が動く。
 - [x] A2A server が Agent Card、auth、`message/send` を既存互換で提供する。
 - [x] OpenAI、Anthropic、Google の provider factory が既存 env var で動く。
 - [x] local tools と remote A2A tools の tool name/schema が既存互換である。

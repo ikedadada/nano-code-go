@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 
 	"nano-code-go/internal/domain"
@@ -109,8 +110,150 @@ func (p *OpenAIProvider) Generate(ctx context.Context, params domain.GeneratePar
 	}, nil
 }
 
-func (p *OpenAIProvider) Stream(context.Context, domain.GenerateParams) (<-chan domain.StreamChunk, error) {
-	return unsupportedStream("openai")
+func (p *OpenAIProvider) Stream(ctx context.Context, params domain.GenerateParams) (<-chan domain.StreamChunk, error) {
+	request := map[string]any{
+		"model":          p.modelID,
+		"messages":       openAIMessages(params.Messages),
+		"stream":         true,
+		"stream_options": map[string]any{"include_usage": true},
+	}
+	if params.Temperature != nil {
+		request["temperature"] = *params.Temperature
+	}
+	if params.MaxTokens != nil {
+		request["max_tokens"] = *params.MaxTokens
+	}
+	if len(params.Tools) > 0 {
+		tools := make([]map[string]any, 0, len(params.Tools))
+		for _, tool := range params.Tools {
+			tools = append(tools, map[string]any{
+				"type": "function",
+				"function": map[string]any{
+					"name":        tool.Name,
+					"description": tool.Description,
+					"parameters":  toolSchema(tool),
+				},
+			})
+		}
+		request["tools"] = tools
+	}
+
+	decoder := &openAIStreamDecoder{}
+	return streamJSON(ctx, p.client, p.baseURL+"/chat/completions", map[string]string{
+		"Authorization": "Bearer " + p.apiKey,
+	}, request, "openai", decoder.decode)
+}
+
+type openAIStreamDecoder struct {
+	toolCalls map[string]*openAIStreamToolCall
+	indexKeys map[int]string
+}
+
+type openAIStreamToolCall struct {
+	id       string
+	name     string
+	argsText string
+}
+
+func (d *openAIStreamDecoder) decode(data []byte) ([]domain.StreamChunk, bool, error) {
+	var event struct {
+		Choices []struct {
+			Delta struct {
+				Content   string `json:"content"`
+				ToolCalls []struct {
+					Index    int    `json:"index"`
+					ID       string `json:"id"`
+					Function struct {
+						Name      string `json:"name"`
+						Arguments string `json:"arguments"`
+					} `json:"function"`
+				} `json:"tool_calls"`
+			} `json:"delta"`
+			FinishReason string `json:"finish_reason"`
+		} `json:"choices"`
+		Usage *struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			TotalTokens      int `json:"total_tokens"`
+		} `json:"usage"`
+	}
+	if err := json.Unmarshal(data, &event); err != nil {
+		return nil, false, fmt.Errorf("decode openai stream event: %w", err)
+	}
+
+	var chunks []domain.StreamChunk
+	var finishReason domain.FinishReason
+	if len(event.Choices) > 0 {
+		choice := event.Choices[0]
+		if choice.Delta.Content != "" {
+			chunks = append(chunks, domain.StreamChunk{Kind: domain.StreamKindDelta, Text: choice.Delta.Content})
+		}
+		if len(choice.Delta.ToolCalls) > 0 {
+			if d.toolCalls == nil {
+				d.toolCalls = map[string]*openAIStreamToolCall{}
+			}
+			if d.indexKeys == nil {
+				d.indexKeys = map[int]string{}
+			}
+			for _, call := range choice.Delta.ToolCalls {
+				key := call.ID
+				if key == "" {
+					key = d.indexKeys[call.Index]
+				}
+				if key == "" {
+					key = fmt.Sprintf("%d", call.Index)
+				}
+				if call.ID != "" {
+					d.indexKeys[call.Index] = key
+				}
+				existing := d.toolCalls[key]
+				if existing == nil {
+					existing = &openAIStreamToolCall{}
+					d.toolCalls[key] = existing
+				}
+				if call.ID != "" {
+					existing.id = call.ID
+				}
+				if call.Function.Name != "" {
+					existing.name = call.Function.Name
+				}
+				existing.argsText += call.Function.Arguments
+			}
+		}
+		if choice.FinishReason != "" {
+			finishReason = openAIFinishReason(choice.FinishReason)
+		}
+	}
+	if finishReason != "" || event.Usage != nil {
+		done := domain.StreamChunk{Kind: domain.StreamKindDone, FinishReason: finishReason, ToolCalls: d.toolCallResults()}
+		if event.Usage != nil {
+			done.Usage = domain.Usage{
+				PromptTokens:     event.Usage.PromptTokens,
+				CompletionTokens: event.Usage.CompletionTokens,
+				TotalTokens:      event.Usage.TotalTokens,
+			}
+		}
+		chunks = append(chunks, done)
+	}
+	return chunks, false, nil
+}
+
+func (d *openAIStreamDecoder) toolCallResults() []domain.ToolCall {
+	keys := make([]string, 0, len(d.toolCalls))
+	for key := range d.toolCalls {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	result := make([]domain.ToolCall, 0, len(keys))
+	for _, key := range keys {
+		call := d.toolCalls[key]
+		args, err := parseJSONObject(call.argsText)
+		if err != nil {
+			args = map[string]any{}
+		}
+		result = append(result, domain.ToolCall{ToolCallID: call.id, Name: call.name, Args: args})
+	}
+	return result
 }
 
 func openAIMessages(messages []domain.Message) []map[string]any {

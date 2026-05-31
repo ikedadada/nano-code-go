@@ -2,6 +2,8 @@ package providers
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"strings"
 
 	"nano-code-go/internal/domain"
@@ -95,8 +97,128 @@ func (p *AnthropicProvider) Generate(ctx context.Context, params domain.Generate
 	}, nil
 }
 
-func (p *AnthropicProvider) Stream(context.Context, domain.GenerateParams) (<-chan domain.StreamChunk, error) {
-	return unsupportedStream("anthropic")
+func (p *AnthropicProvider) Stream(ctx context.Context, params domain.GenerateParams) (<-chan domain.StreamChunk, error) {
+	request := map[string]any{
+		"model":      p.modelID,
+		"system":     anthropicSystem(params.Messages),
+		"messages":   anthropicMessages(params.Messages),
+		"max_tokens": 4096,
+		"stream":     true,
+	}
+	if params.Temperature != nil {
+		request["temperature"] = *params.Temperature
+	}
+	if params.MaxTokens != nil {
+		request["max_tokens"] = *params.MaxTokens
+	}
+	if len(params.Tools) > 0 {
+		tools := make([]map[string]any, 0, len(params.Tools))
+		for _, tool := range params.Tools {
+			tools = append(tools, map[string]any{
+				"name":         tool.Name,
+				"description":  tool.Description,
+				"input_schema": toolSchema(tool),
+			})
+		}
+		request["tools"] = tools
+	}
+
+	decoder := &anthropicStreamDecoder{
+		toolCalls:      map[string]domain.ToolCall{},
+		partialJSON:    map[string]string{},
+		contentIndexID: map[int]string{},
+	}
+	return streamJSON(ctx, p.client, p.baseURL+"/messages", map[string]string{
+		"x-api-key":         p.apiKey,
+		"anthropic-version": "2023-06-01",
+	}, request, "anthropic", decoder.decode)
+}
+
+type anthropicStreamDecoder struct {
+	toolCalls      map[string]domain.ToolCall
+	partialJSON    map[string]string
+	contentIndexID map[int]string
+}
+
+func (d *anthropicStreamDecoder) decode(data []byte) ([]domain.StreamChunk, bool, error) {
+	var event struct {
+		Type         string `json:"type"`
+		Index        int    `json:"index"`
+		ContentBlock struct {
+			Type  string         `json:"type"`
+			ID    string         `json:"id"`
+			Name  string         `json:"name"`
+			Input map[string]any `json:"input"`
+		} `json:"content_block"`
+		Delta struct {
+			Type        string `json:"type"`
+			Text        string `json:"text"`
+			PartialJSON string `json:"partial_json"`
+			StopReason  string `json:"stop_reason"`
+		} `json:"delta"`
+		Usage *struct {
+			InputTokens  int `json:"input_tokens"`
+			OutputTokens int `json:"output_tokens"`
+		} `json:"usage"`
+	}
+	if err := json.Unmarshal(data, &event); err != nil {
+		return nil, false, fmt.Errorf("decode anthropic stream event: %w", err)
+	}
+
+	switch event.Type {
+	case "content_block_start":
+		if event.ContentBlock.Type == "tool_use" {
+			id := event.ContentBlock.ID
+			d.contentIndexID[event.Index] = id
+			d.toolCalls[id] = domain.ToolCall{ToolCallID: id, Name: event.ContentBlock.Name, Args: event.ContentBlock.Input}
+			d.partialJSON[id] = ""
+		}
+	case "content_block_delta":
+		switch event.Delta.Type {
+		case "text_delta":
+			if event.Delta.Text != "" {
+				return []domain.StreamChunk{{Kind: domain.StreamKindDelta, Text: event.Delta.Text}}, false, nil
+			}
+		case "input_json_delta":
+			id := d.contentIndexID[event.Index]
+			if id != "" {
+				d.partialJSON[id] += event.Delta.PartialJSON
+				if args, err := parseJSONObject(d.partialJSON[id]); err == nil {
+					call := d.toolCalls[id]
+					call.Args = args
+					d.toolCalls[id] = call
+				}
+			}
+		}
+	case "message_delta":
+		done := domain.StreamChunk{
+			Kind:         domain.StreamKindDone,
+			FinishReason: anthropicFinishReason(event.Delta.StopReason),
+			ToolCalls:    d.toolCallResults(),
+		}
+		if event.Usage != nil {
+			done.Usage = domain.Usage{
+				PromptTokens:     event.Usage.InputTokens,
+				CompletionTokens: event.Usage.OutputTokens,
+				TotalTokens:      event.Usage.InputTokens + event.Usage.OutputTokens,
+			}
+		}
+		return []domain.StreamChunk{done}, false, nil
+	case "message_stop":
+		return nil, true, nil
+	}
+	return nil, false, nil
+}
+
+func (d *anthropicStreamDecoder) toolCallResults() []domain.ToolCall {
+	result := make([]domain.ToolCall, 0, len(d.toolCalls))
+	for _, call := range d.toolCalls {
+		if call.Args == nil {
+			call.Args = map[string]any{}
+		}
+		result = append(result, call)
+	}
+	return result
 }
 
 func anthropicSystem(messages []domain.Message) []map[string]any {

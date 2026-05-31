@@ -1,12 +1,14 @@
 package providers
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"nano-code-go/internal/domain"
 )
@@ -69,8 +71,101 @@ func postJSON(ctx context.Context, client HTTPDoer, url string, headers map[stri
 	return nil
 }
 
-func unsupportedStream(provider string) (<-chan domain.StreamChunk, error) {
-	return nil, fmt.Errorf("%s streaming is not implemented", provider)
+type streamDecoder func([]byte) ([]domain.StreamChunk, bool, error)
+
+func streamJSON(ctx context.Context, client HTTPDoer, url string, headers map[string]string, requestBody any, provider string, decode streamDecoder) (<-chan domain.StreamChunk, error) {
+	body, err := json.Marshal(requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("encode %s stream request: %w", provider, err)
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("create %s stream request: %w", provider, err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Accept", "text/event-stream")
+	for key, value := range headers {
+		if value != "" {
+			request.Header.Set(key, value)
+		}
+	}
+
+	response, err := client.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("send %s stream request: %w", provider, err)
+	}
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		defer response.Body.Close()
+		responseBytes, readErr := io.ReadAll(response.Body)
+		if readErr != nil {
+			return nil, fmt.Errorf("read %s stream error response: %w", provider, readErr)
+		}
+		return nil, &domain.LLMAPIError{
+			Status:   response.StatusCode,
+			Provider: provider,
+			Message:  fmt.Sprintf("LLM API Error: %s responded with status %d", provider, response.StatusCode),
+			Raw:      string(responseBytes),
+		}
+	}
+
+	chunks := make(chan domain.StreamChunk)
+	go func() {
+		defer close(chunks)
+		defer response.Body.Close()
+
+		scanner := bufio.NewScanner(response.Body)
+		for scanner.Scan() {
+			select {
+			case <-ctx.Done():
+				sendStreamChunk(ctx, chunks, domain.StreamChunk{Err: ctx.Err()})
+				return
+			default:
+			}
+
+			data, ok := eventData(scanner.Text())
+			if !ok {
+				continue
+			}
+			if string(data) == "[DONE]" {
+				return
+			}
+			decoded, done, err := decode(data)
+			if err != nil {
+				sendStreamChunk(ctx, chunks, domain.StreamChunk{Err: err})
+				return
+			}
+			for _, chunk := range decoded {
+				if !sendStreamChunk(ctx, chunks, chunk) {
+					return
+				}
+			}
+			if done {
+				return
+			}
+		}
+		if err := scanner.Err(); err != nil {
+			sendStreamChunk(ctx, chunks, domain.StreamChunk{Err: fmt.Errorf("read %s stream: %w", provider, err)})
+		}
+	}()
+	return chunks, nil
+}
+
+func eventData(line string) ([]byte, bool) {
+	line = strings.TrimSpace(line)
+	if !strings.HasPrefix(line, "data:") {
+		return nil, false
+	}
+	return []byte(strings.TrimSpace(strings.TrimPrefix(line, "data:"))), true
+}
+
+func sendStreamChunk(ctx context.Context, chunks chan<- domain.StreamChunk, chunk domain.StreamChunk) bool {
+	select {
+	case <-ctx.Done():
+		return false
+	case chunks <- chunk:
+		return true
+	}
 }
 
 func toolSchema(tool domain.Tool) map[string]any {

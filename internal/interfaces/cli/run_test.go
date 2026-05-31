@@ -154,6 +154,45 @@ func TestRunWithRunnerSmokeYoloFakeAgent(t *testing.T) {
 	}
 }
 
+func TestRunWithRunnerSmokeStreamingFakeAgent(t *testing.T) {
+	t.Parallel()
+
+	var stdout bytes.Buffer
+	err := runWithRunner(
+		context.Background(),
+		[]string{"--streaming", "stream", "please"},
+		&stdout,
+		nil,
+		Env{},
+		func(ctx context.Context, request RunAgentRequest) (RunAgentResponse, error) {
+			if !request.Streaming {
+				t.Fatalf("Streaming = false")
+			}
+			smokeAgent := agent.New(agent.Config{
+				Name:         "smoke",
+				Instructions: "stream",
+				Model:        &streamSmokeModel{},
+				MaxSteps:     1,
+				UseStreaming: request.Streaming,
+				Output:       &stdout,
+				Approval:     approval.AllowAll,
+			})
+
+			result, err := smokeAgent.Generate(ctx, request.Prompt)
+			if err != nil {
+				return RunAgentResponse{}, err
+			}
+			return RunAgentResponse{Text: result.Text}, nil
+		},
+	)
+	if err != nil {
+		t.Fatalf("runWithRunner() error = %v", err)
+	}
+	if stdout.String() != "streamedstreamed\n" {
+		t.Fatalf("stdout = %q", stdout.String())
+	}
+}
+
 func TestRunWithRunnerIssueBodyPrecedence(t *testing.T) {
 	t.Parallel()
 
@@ -258,4 +297,22 @@ func (m *smokeModel) Generate(_ context.Context, params domain.GenerateParams) (
 
 func (m *smokeModel) Stream(context.Context, domain.GenerateParams) (<-chan domain.StreamChunk, error) {
 	return nil, errors.New("streaming is not used by this test")
+}
+
+type streamSmokeModel struct{}
+
+func (m *streamSmokeModel) Generate(context.Context, domain.GenerateParams) (domain.GenerateTextResult, error) {
+	return domain.GenerateTextResult{}, errors.New("non-streaming generate is not used by this test")
+}
+
+func (m *streamSmokeModel) Stream(ctx context.Context, params domain.GenerateParams) (<-chan domain.StreamChunk, error) {
+	if len(params.Messages) < 2 || params.Messages[1].Content != "stream please" {
+		return nil, errors.New("prompt was not forwarded to stream model")
+	}
+	chunks := make(chan domain.StreamChunk, 2)
+	chunks <- domain.StreamChunk{Kind: domain.StreamKindDelta, Text: "streamed"}
+	chunks <- domain.StreamChunk{Kind: domain.StreamKindDone, FinishReason: domain.FinishReasonStop}
+	close(chunks)
+	_ = ctx
+	return chunks, nil
 }
