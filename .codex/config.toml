@@ -9,3 +9,12 @@ glob_scan_max_depth = 3
 "." = "write"
 "**/.env" = "deny"
 "**/.env.*" = "deny"
+
+[permissions.local.network]
+enabled = true
+
+[permissions.local.network.domains]
+"proxy.golang.org" = "allow"
+"sum.golang.org" = "allow"
+"golang.org" = "allow"
+"go.dev" = "allow"
