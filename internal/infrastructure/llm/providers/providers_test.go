@@ -297,6 +297,157 @@ func TestGoogleProviderGenerate(t *testing.T) {
 	}
 }
 
+func TestProviderRequestGoldens(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		model    domain.LanguageModel
+		response map[string]any
+		wantJSON string
+	}{
+		{
+			name:     "openai",
+			model:    providers.NewOpenAI("gpt-test", providers.Config{APIKey: "test-key", BaseURL: "https://openai.test/v1"}),
+			response: openAITestResponse(),
+			wantJSON: `{
+				"max_tokens": 512,
+				"messages": [
+					{"content": "system", "role": "system"},
+					{
+						"content": "using tool",
+						"role": "assistant",
+						"tool_calls": [
+							{
+								"function": {"arguments": "{\"path\":\"a.txt\"}", "name": "readFile"},
+								"id": "call-0",
+								"type": "function"
+							}
+						]
+					},
+					{"content": "file content", "role": "tool", "tool_call_id": "call-0"},
+					{"content": "hello", "role": "user"}
+				],
+				"model": "gpt-test",
+				"temperature": 0.2,
+				"tools": [
+					{
+						"function": {
+							"description": "Read a file",
+							"name": "readFile",
+							"parameters": {
+								"properties": {"path": {"description": "The path", "type": "string"}},
+								"required": ["path"],
+								"type": "object"
+							}
+						},
+						"type": "function"
+					}
+				]
+			}`,
+		},
+		{
+			name:     "anthropic",
+			model:    providers.NewAnthropic("claude-test", providers.Config{APIKey: "test-key", BaseURL: "https://anthropic.test/v1"}),
+			response: anthropicTestResponse(),
+			wantJSON: `{
+				"max_tokens": 512,
+				"messages": [
+					{
+						"content": [
+							{"text": "using tool", "type": "text"},
+							{"id": "call-0", "input": {"path": "a.txt"}, "name": "readFile", "type": "tool_use"}
+						],
+						"role": "assistant"
+					},
+					{
+						"content": [{"content": "file content", "tool_use_id": "call-0", "type": "tool_result"}],
+						"role": "user"
+					},
+					{"content": "hello", "role": "user"}
+				],
+				"model": "claude-test",
+				"system": [{"text": "system", "type": "text"}],
+				"temperature": 0.2,
+				"tools": [
+					{
+						"description": "Read a file",
+						"input_schema": {
+							"properties": {"path": {"description": "The path", "type": "string"}},
+							"required": ["path"],
+							"type": "object"
+						},
+						"name": "readFile"
+					}
+				]
+			}`,
+		},
+		{
+			name:     "google",
+			model:    providers.NewGoogle("gemini-test", providers.Config{APIKey: "test-key", BaseURL: "https://google.test/v1beta"}),
+			response: googleTestResponse(),
+			wantJSON: `{
+				"config": {
+					"maxOutputTokens": 512,
+					"systemInstruction": "system",
+					"temperature": 0.2,
+					"tools": [
+						{
+							"functionDeclarations": [
+								{
+									"description": "Read a file",
+									"name": "readFile",
+									"parametersJsonSchema": {
+										"properties": {"path": {"description": "The path", "type": "string"}},
+										"required": ["path"],
+										"type": "object"
+									}
+								}
+							]
+						}
+					]
+				},
+				"contents": [
+					{
+						"parts": [
+							{"text": "using tool"},
+							{"functionCall": {"args": {"path": "a.txt"}, "name": "readFile"}}
+						],
+						"role": "model"
+					},
+					{
+						"parts": [
+							{"functionResponse": {"name": "readFile", "response": {"result": {"result": "file content"}}}}
+						],
+						"role": "tool"
+					},
+					{"parts": [{"text": "hello"}], "role": "user"}
+				]
+			}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotJSON []byte
+			model := withClient(tt.model, llmDoer(func(request *http.Request) (*http.Response, error) {
+				var err error
+				gotJSON, err = io.ReadAll(request.Body)
+				if err != nil {
+					t.Fatalf("read request body: %v", err)
+				}
+				return jsonResponse(t, http.StatusOK, tt.response), nil
+			}))
+			if _, err := model.Generate(context.Background(), goldenParams()); err != nil {
+				t.Fatalf("Generate() error = %v", err)
+			}
+			assertCanonicalJSON(t, string(gotJSON), tt.wantJSON)
+		})
+	}
+}
+
 func TestProvidersStreamUnsupported(t *testing.T) {
 	t.Parallel()
 
@@ -310,6 +461,22 @@ func TestProvidersStreamUnsupported(t *testing.T) {
 		if err == nil || !strings.Contains(err.Error(), "streaming is not implemented") {
 			t.Fatalf("Stream() error = %v, want unsupported streaming", err)
 		}
+	}
+}
+
+func withClient(model domain.LanguageModel, client providers.HTTPDoer) domain.LanguageModel {
+	switch typed := model.(type) {
+	case *providers.OpenAIProvider:
+		_ = typed
+		return providers.NewOpenAI("gpt-test", providers.Config{APIKey: "test-key", BaseURL: "https://openai.test/v1", Client: client})
+	case *providers.AnthropicProvider:
+		_ = typed
+		return providers.NewAnthropic("claude-test", providers.Config{APIKey: "test-key", BaseURL: "https://anthropic.test/v1", Client: client})
+	case *providers.GoogleProvider:
+		_ = typed
+		return providers.NewGoogle("gemini-test", providers.Config{APIKey: "test-key", BaseURL: "https://google.test/v1beta", Client: client})
+	default:
+		return model
 	}
 }
 
@@ -336,6 +503,43 @@ func sampleParams() domain.GenerateParams {
 	}
 }
 
+func goldenParams() domain.GenerateParams {
+	temperature := 0.2
+	maxTokens := 512
+	return domain.GenerateParams{
+		Messages: []domain.Message{
+			{Role: domain.MessageRoleSystem, Content: "system"},
+			{
+				Role:    domain.MessageRoleAssistant,
+				Content: "using tool",
+				ToolCalls: []domain.ToolCall{{
+					ToolCallID: "call-0",
+					Name:       "readFile",
+					Args:       map[string]any{"path": "a.txt"},
+				}},
+			},
+			{Role: domain.MessageRoleTool, ToolCallID: "call-0", Name: "readFile", Content: "file content"},
+			{Role: domain.MessageRoleUser, Content: "hello"},
+		},
+		Tools: []domain.Tool{{
+			Name:        "readFile",
+			Description: "Read a file",
+			Parameters: domain.ToolParameters{
+				Type: "object",
+				Properties: map[string]any{
+					"path": map[string]any{
+						"type":        "string",
+						"description": "The path",
+					},
+				},
+				Required: []string{"path"},
+			},
+		}},
+		Temperature: &temperature,
+		MaxTokens:   &maxTokens,
+	}
+}
+
 func jsonResponse(t *testing.T, status int, value any) *http.Response {
 	t.Helper()
 
@@ -349,6 +553,30 @@ func jsonResponse(t *testing.T, status int, value any) *http.Response {
 		Header:     http.Header{"Content-Type": []string{"application/json"}},
 		Body:       io.NopCloser(bytes.NewReader(body)),
 	}
+}
+
+func assertCanonicalJSON(t *testing.T, got string, want string) {
+	t.Helper()
+
+	gotCanonical := canonicalJSON(t, got)
+	wantCanonical := canonicalJSON(t, want)
+	if gotCanonical != wantCanonical {
+		t.Fatalf("JSON mismatch\ngot:  %s\nwant: %s", gotCanonical, wantCanonical)
+	}
+}
+
+func canonicalJSON(t *testing.T, input string) string {
+	t.Helper()
+
+	var value any
+	if err := json.Unmarshal([]byte(input), &value); err != nil {
+		t.Fatalf("unmarshal JSON: %v\n%s", err, input)
+	}
+	body, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal canonical JSON: %v", err)
+	}
+	return string(body)
 }
 
 func assertMapContains(t *testing.T, value map[string]any, key string, want any) {
