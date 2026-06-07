@@ -93,6 +93,44 @@ and Gemini while preserving the internal `domain.LanguageModel` interface.
 `TODO.md` is the migration checklist. Detailed compatibility tables are in
 [docs/migration.md](docs/migration.md).
 
+## Supply Chain Guard
+
+Local development and CI use Takumi Guard anonymous mode for public Go module
+downloads. Takumi Guard is configured as `GOPROXY` and blocks known malicious
+modules before they are downloaded.
+
+Local development is configured through `mise.toml`:
+
+```toml
+[env]
+GOCACHE = "/tmp/go-build"
+GOPROXY = "https://golang.flatt.tech"
+```
+
+With `mise activate` enabled in your shell, direct Go commands such as
+`go test ./...`, `go mod download`, and `go run ./cmd/nano-code` inherit this
+setting automatically when run from the repository.
+
+Verify the active local environment with:
+
+```sh
+mise env | grep -E '^(GOCACHE|GOPROXY)='
+go env GOCACHE
+go env GOPROXY
+```
+
+The expected values are `GOCACHE=/tmp/go-build` and
+`GOPROXY=https://golang.flatt.tech`. Do not append `,direct` or `|direct` to
+`GOPROXY`; direct fallback can bypass Takumi Guard when a module is not
+available through the proxy or when a blocked module returns an error.
+
+Use `mise` for local development so these values stay centralized in
+`mise.toml`.
+
+This repository currently uses anonymous mode only. Free email-verified
+`tg_anon_...` tokens for per-developer download tracking and breach
+notifications are tracked as follow-up work in `TODO.md`.
+
 ## Legacy TypeScript Implementation
 
 The TypeScript implementation under `./nano-code` is deprecated and kept only
@@ -105,7 +143,8 @@ The current release build policy is to produce the two CLI binaries directly
 with `go build`:
 
 ```sh
-make build
+go build -o bin/nano-code ./cmd/nano-code
+go build -o bin/nano-code-a2a ./cmd/nano-code-a2a
 ```
 
 This writes `bin/nano-code` and `bin/nano-code-a2a`. GoReleaser is not required
@@ -117,20 +156,22 @@ release notes are needed.
 Useful commands:
 
 ```sh
-make fmt
-make test
-make race
-make lint
-make vuln
-make build
-make run
-make run-a2a
+gofmt -w ./cmd ./internal
+go test ./...
+go test -race ./...
+go vet ./...
+go tool govulncheck ./...
+go build -o bin/nano-code ./cmd/nano-code
+go build -o bin/nano-code-a2a ./cmd/nano-code-a2a
+go run ./cmd/nano-code
+go run ./cmd/nano-code-a2a
 ```
 
-`make test` runs `go test ./...`. `make race` runs `go test -race ./...`.
-`make lint` uses only Go standard tooling: it checks `gofmt` output and runs
-`go vet ./...`. `make vuln` runs the pinned `govulncheck` tool through
-`go tool govulncheck ./...`. `make build` writes ignored binaries under `bin/`.
+Formatting uses `gofmt`. Linting uses only Go standard tooling: check
+`gofmt -l ./cmd ./internal` output and run `go vet ./...`. Vulnerability
+checking runs the pinned `govulncheck` tool through
+`go tool govulncheck ./...`. Build commands write ignored binaries under
+`bin/`.
 
 Provider integration tests are excluded from the default test suite because
 they require network access and API keys. Run them explicitly with:
