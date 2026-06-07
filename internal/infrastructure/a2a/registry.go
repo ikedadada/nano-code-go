@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"io"
 
-	"nano-code-go/internal/domain"
+	"nano-code-go/internal/a2aprotocol"
 )
 
 type RegisteredAgent struct {
@@ -13,7 +13,7 @@ type RegisteredAgent struct {
 	CardURL     string
 	EndpointURL string
 	BearerToken string
-	Card        domain.A2AAgentCard
+	Card        a2aprotocol.AgentCard
 }
 
 type Registry struct {
@@ -29,7 +29,7 @@ func (r *Registry) List() []RegisteredAgent {
 }
 
 type AgentCardFetcher interface {
-	FetchAgentCard(ctx context.Context, agentCardURL, bearerToken string) (domain.A2AAgentCard, error)
+	FetchAgentCard(ctx context.Context, agentCardURL, bearerToken string) (a2aprotocol.AgentCard, error)
 }
 
 func Discover(ctx context.Context, sources []AgentSource, client AgentCardFetcher, warnings io.Writer) *Registry {

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"nano-code-go/internal/agentruntime"
 	"nano-code-go/internal/infrastructure/logger"
 )
 
@@ -31,22 +32,9 @@ func (e *UsageError) Unwrap() error {
 	return e.Err
 }
 
-type Env map[string]string
-
-type RunAgentRequest struct {
-	Prompt         string
-	IssueDriven    bool
-	Streaming      bool
-	Yolo           bool
-	Sandbox        bool
-	AllowedDomains []string
-	WorkspaceRoot  string
-}
-
-type RunAgentResponse struct {
-	Text     string
-	Streamed bool
-}
+type Env = agentruntime.Env
+type RunAgentRequest = agentruntime.RunAgentRequest
+type RunAgentResponse = agentruntime.RunAgentResponse
 
 type AgentRunner func(ctx context.Context, request RunAgentRequest) (RunAgentResponse, error)
 

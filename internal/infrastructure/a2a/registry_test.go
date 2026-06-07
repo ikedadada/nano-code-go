@@ -8,18 +8,18 @@ import (
 	"strings"
 	"testing"
 
-	"nano-code-go/internal/domain"
+	"nano-code-go/internal/a2aprotocol"
 	infraa2a "nano-code-go/internal/infrastructure/a2a"
 )
 
 type fakeFetcher struct {
-	cards map[string]domain.A2AAgentCard
+	cards map[string]a2aprotocol.AgentCard
 	errs  map[string]error
 }
 
-func (f fakeFetcher) FetchAgentCard(_ context.Context, url, _ string) (domain.A2AAgentCard, error) {
+func (f fakeFetcher) FetchAgentCard(_ context.Context, url, _ string) (a2aprotocol.AgentCard, error) {
 	if err := f.errs[url]; err != nil {
-		return domain.A2AAgentCard{}, err
+		return a2aprotocol.AgentCard{}, err
 	}
 	return f.cards[url], nil
 }
@@ -41,7 +41,7 @@ func TestDiscover(t *testing.T) {
 		AgentCardURL: "http://remote.example/.well-known/agent-card.json",
 		BearerToken:  "secret-token",
 	}}, fakeFetcher{
-		cards: map[string]domain.A2AAgentCard{
+		cards: map[string]a2aprotocol.AgentCard{
 			"http://remote.example/.well-known/agent-card.json": card,
 		},
 	}, nil)
@@ -67,7 +67,7 @@ func TestDiscoverUsesEndpointOverrideAndSkipsFailures(t *testing.T) {
 		{ID: "offline", AgentCardURL: "http://offline.example/card"},
 		{ID: "docker", AgentCardURL: "http://localhost:9000/card", EndpointURL: "http://localhost:9000/invoke"},
 	}, fakeFetcher{
-		cards: map[string]domain.A2AAgentCard{
+		cards: map[string]a2aprotocol.AgentCard{
 			"http://localhost:9000/card": card,
 		},
 		errs: map[string]error{
@@ -87,16 +87,16 @@ func TestDiscoverUsesEndpointOverrideAndSkipsFailures(t *testing.T) {
 	}
 }
 
-func testCard(name, url string) domain.A2AAgentCard {
-	return domain.A2AAgentCard{
+func testCard(name, url string) a2aprotocol.AgentCard {
+	return a2aprotocol.AgentCard{
 		ProtocolVersion:    "0.3.0",
 		Name:               name,
 		Description:        "Remote A2A agent.",
 		URL:                url,
 		PreferredTransport: "JSONRPC",
-		Capabilities:       domain.A2AAgentCapabilities{},
+		Capabilities:       a2aprotocol.AgentCapabilities{},
 		DefaultInputModes:  []string{"text/plain"},
 		DefaultOutputModes: []string{"text/plain"},
-		Skills:             []domain.A2AAgentSkill{},
+		Skills:             []a2aprotocol.AgentSkill{},
 	}
 }

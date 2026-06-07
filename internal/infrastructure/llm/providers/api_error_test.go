@@ -1,17 +1,17 @@
-package domain_test
+package providers_test
 
 import (
 	"reflect"
 	"testing"
 
-	"nano-code-go/internal/domain"
+	"nano-code-go/internal/infrastructure/llm/providers"
 )
 
-func TestLLMAPIError(t *testing.T) {
+func TestAPIError(t *testing.T) {
 	t.Parallel()
 
 	raw := map[string]any{"requestId": "req-1"}
-	err := &domain.LLMAPIError{
+	err := &providers.APIError{
 		Status:   429,
 		Provider: "openai",
 		Code:     "rate_limit",

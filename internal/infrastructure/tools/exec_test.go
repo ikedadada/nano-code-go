@@ -8,22 +8,23 @@ import (
 	"testing"
 	"time"
 
+	"nano-code-go/internal/infrastructure/process"
 	"nano-code-go/internal/infrastructure/tools"
 )
 
 type recordingRunner struct {
 	calls  []runCall
-	result tools.RunResult
+	result process.RunResult
 	err    error
 }
 
 type runCall struct {
 	commandName string
 	commandArgs []string
-	options     tools.RunOptions
+	options     process.RunOptions
 }
 
-func (r *recordingRunner) Run(_ context.Context, commandName string, commandArgs []string, options tools.RunOptions) (tools.RunResult, error) {
+func (r *recordingRunner) Run(_ context.Context, commandName string, commandArgs []string, options process.RunOptions) (process.RunResult, error) {
 	r.calls = append(r.calls, runCall{
 		commandName: commandName,
 		commandArgs: append([]string(nil), commandArgs...),
@@ -36,7 +37,7 @@ func TestExecCommand(t *testing.T) {
 	t.Parallel()
 
 	workspace := t.TempDir()
-	runner := &recordingRunner{result: tools.RunResult{Stdout: "ok\n"}}
+	runner := &recordingRunner{result: process.RunResult{Stdout: "ok\n"}}
 	result, err := tools.ExecCommand(workspace, runner).Execute(context.Background(), map[string]any{
 		"command": `ls "nested dir"`,
 	})
@@ -49,10 +50,28 @@ func TestExecCommand(t *testing.T) {
 	wantCalls := []runCall{{
 		commandName: "ls",
 		commandArgs: []string{"nested dir"},
-		options:     tools.RunOptions{WorkspaceRoot: workspace, Timeout: 30 * time.Second},
+		options:     process.RunOptions{WorkspaceRoot: workspace, Timeout: 30 * time.Second},
 	}}
 	if !reflect.DeepEqual(runner.calls, wantCalls) {
 		t.Fatalf("runner.calls = %#v, want %#v", runner.calls, wantCalls)
+	}
+}
+
+func TestExecCommandAllowsGoDevelopmentCommands(t *testing.T) {
+	t.Parallel()
+
+	runner := &recordingRunner{result: process.RunResult{Stdout: "ok\n"}}
+	result, err := tools.ExecCommand(t.TempDir(), runner).Execute(context.Background(), map[string]any{
+		"command": "go test",
+	})
+	if err != nil {
+		t.Fatalf("execCommand error = %v", err)
+	}
+	if result != "ok" {
+		t.Fatalf("execCommand = %q, want ok", result)
+	}
+	if len(runner.calls) != 1 || runner.calls[0].commandName != "go" {
+		t.Fatalf("runner.calls = %#v", runner.calls)
 	}
 }
 
@@ -97,7 +116,7 @@ func TestExecCommandSurfacesRunnerFailures(t *testing.T) {
 	t.Parallel()
 
 	runner := &recordingRunner{
-		result: tools.RunResult{Stderr: "bad", ExitCode: 2},
+		result: process.RunResult{Stderr: "bad", ExitCode: 2},
 		err:    errors.New("exit status 2"),
 	}
 	_, err := tools.ExecCommand(t.TempDir(), runner).Execute(context.Background(), map[string]any{

@@ -16,7 +16,7 @@ import (
 func TestClient_FetchAgentCard(t *testing.T) {
 	t.Parallel()
 
-	client := infraa2a.NewClient(doerFunc(func(r *http.Request) (*http.Response, error) {
+	client := infraa2a.NewClient(httpClient(func(r *http.Request) (*http.Response, error) {
 		if got, want := r.Header.Get("Authorization"), "Bearer secret-token"; got != want {
 			t.Fatalf("Authorization = %q, want %q", got, want)
 		}
@@ -49,7 +49,7 @@ func TestClient_FetchAgentCard(t *testing.T) {
 func TestClient_SendMessage(t *testing.T) {
 	t.Parallel()
 
-	client := infraa2a.NewClient(doerFunc(func(r *http.Request) (*http.Response, error) {
+	client := infraa2a.NewClient(httpClient(func(r *http.Request) (*http.Response, error) {
 		if got, want := r.Header.Get("Content-Type"), "application/json"; got != want {
 			t.Fatalf("Content-Type = %q, want %q", got, want)
 		}
@@ -168,7 +168,7 @@ func TestClient_SendMessageExtractsTaskResults(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := infraa2a.NewClient(doerFunc(func(r *http.Request) (*http.Response, error) {
+			client := infraa2a.NewClient(httpClient(func(r *http.Request) (*http.Response, error) {
 				var request map[string]any
 				if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 					t.Fatalf("decode request: %v", err)
@@ -235,7 +235,7 @@ func TestClient_SendMessageErrors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			client := infraa2a.NewClient(doerFunc(func(*http.Request) (*http.Response, error) {
+			client := infraa2a.NewClient(httpClient(func(*http.Request) (*http.Response, error) {
 				return jsonHTTPResponse(t, http.StatusOK, tt.body), nil
 			}))
 
@@ -252,8 +252,12 @@ func TestClient_SendMessageErrors(t *testing.T) {
 
 type doerFunc func(*http.Request) (*http.Response, error)
 
-func (f doerFunc) Do(request *http.Request) (*http.Response, error) {
+func (f doerFunc) RoundTrip(request *http.Request) (*http.Response, error) {
 	return f(request)
+}
+
+func httpClient(do func(*http.Request) (*http.Response, error)) *http.Client {
+	return &http.Client{Transport: doerFunc(do)}
 }
 
 func jsonHTTPResponse(t *testing.T, status int, value any) *http.Response {

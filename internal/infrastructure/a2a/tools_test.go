@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"nano-code-go/internal/domain"
+	"nano-code-go/internal/a2aprotocol"
 	infraa2a "nano-code-go/internal/infrastructure/a2a"
 )
 
@@ -31,10 +31,10 @@ func TestCreateTools(t *testing.T) {
 		t.Fatalf("CreateTools(empty) = %#v, want empty", got)
 	}
 
-	card := domain.A2AAgentCard{
+	card := a2aprotocol.AgentCard{
 		Name: "Code Reviewer",
 		URL:  "http://reviewer.example/a2a",
-		Skills: []domain.A2AAgentSkill{{
+		Skills: []a2aprotocol.AgentSkill{{
 			ID:          "review-code",
 			Name:        "Review Code",
 			Description: "Reviews code and reports actionable findings.",

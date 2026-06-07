@@ -53,7 +53,7 @@ func RunAgentWithIO(
 		return RunAgentResponse{}, err
 	}
 
-	instructions, err := prompts.LoadInstructions(request.WorkspaceRoot, request.IssueDriven)
+	instructions, err := prompts.LoadInstructionsWithEnv(request.WorkspaceRoot, request.IssueDriven, stringEnv(env))
 	if err != nil {
 		return RunAgentResponse{}, err
 	}
@@ -68,7 +68,7 @@ func RunAgentWithIO(
 	if request.Yolo {
 		approvalPolicy = approval.AllowAll
 	}
-	var commandRunner tools.CommandRunner
+	var commandRunner process.CommandRunner
 	if request.Sandbox {
 		commandRunner = process.NewSandboxRunner(safeSandboxEnv(env), false, nil)
 	}

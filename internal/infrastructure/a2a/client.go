@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"nano-code-go/internal/domain"
+	"nano-code-go/internal/a2aprotocol"
 )
 
 type RemoteAgentEndpoint struct {
@@ -20,25 +20,21 @@ type RemoteAgentEndpoint struct {
 	BearerToken string
 }
 
-type HTTPDoer interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
 type Client struct {
-	httpClient HTTPDoer
+	httpClient *http.Client
 }
 
-func NewClient(httpClient HTTPDoer) *Client {
+func NewClient(httpClient *http.Client) *Client {
 	if httpClient == nil {
 		httpClient = http.DefaultClient
 	}
 	return &Client{httpClient: httpClient}
 }
 
-func (c *Client) FetchAgentCard(ctx context.Context, agentCardURL, bearerToken string) (domain.A2AAgentCard, error) {
+func (c *Client) FetchAgentCard(ctx context.Context, agentCardURL, bearerToken string) (a2aprotocol.AgentCard, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, agentCardURL, nil)
 	if err != nil {
-		return domain.A2AAgentCard{}, fmt.Errorf("create agent card request: %w", err)
+		return a2aprotocol.AgentCard{}, fmt.Errorf("create agent card request: %w", err)
 	}
 	if bearerToken != "" {
 		request.Header.Set("Authorization", "Bearer "+bearerToken)
@@ -46,17 +42,17 @@ func (c *Client) FetchAgentCard(ctx context.Context, agentCardURL, bearerToken s
 
 	response, err := c.httpClient.Do(request)
 	if err != nil {
-		return domain.A2AAgentCard{}, fmt.Errorf("fetch A2A agent card: %w", err)
+		return a2aprotocol.AgentCard{}, fmt.Errorf("fetch A2A agent card: %w", err)
 	}
 	defer response.Body.Close()
 
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return domain.A2AAgentCard{}, fmt.Errorf("A2A Agent Card fetch failed with HTTP %d %s", response.StatusCode, response.Status)
+		return a2aprotocol.AgentCard{}, fmt.Errorf("A2A Agent Card fetch failed with HTTP %d %s", response.StatusCode, response.Status)
 	}
 
-	var card domain.A2AAgentCard
+	var card a2aprotocol.AgentCard
 	if err := json.NewDecoder(response.Body).Decode(&card); err != nil {
-		return domain.A2AAgentCard{}, fmt.Errorf("decode A2A agent card: %w", err)
+		return a2aprotocol.AgentCard{}, fmt.Errorf("decode A2A agent card: %w", err)
 	}
 	return card, nil
 }

@@ -6,21 +6,19 @@ import (
 	"os"
 	"runtime"
 	"sort"
-
-	"nano-code-go/internal/infrastructure/tools"
 )
 
 const defaultPath = "/usr/local/bin:/usr/bin:/bin"
 
 type SandboxRunner struct {
-	base         tools.CommandRunner
+	base         CommandRunner
 	env          map[string]string
 	allowNetwork bool
 }
 
-func NewSandboxRunner(env map[string]string, allowNetwork bool, base tools.CommandRunner) SandboxRunner {
+func NewSandboxRunner(env map[string]string, allowNetwork bool, base CommandRunner) SandboxRunner {
 	if base == nil {
-		base = tools.OSCommandRunner{}
+		base = OSCommandRunner{}
 	}
 	return SandboxRunner{
 		base:         base,
@@ -29,9 +27,9 @@ func NewSandboxRunner(env map[string]string, allowNetwork bool, base tools.Comma
 	}
 }
 
-func (r SandboxRunner) Run(ctx context.Context, commandName string, commandArgs []string, options tools.RunOptions) (tools.RunResult, error) {
+func (r SandboxRunner) Run(ctx context.Context, commandName string, commandArgs []string, options RunOptions) (RunResult, error) {
 	if runtime.GOOS != "linux" {
-		return tools.RunResult{Stderr: "Sandbox Error: sandbox is only supported on linux", ExitCode: 126}, nil
+		return RunResult{Stderr: "Sandbox Error: sandbox is only supported on linux", ExitCode: 126}, nil
 	}
 
 	cwd := options.WorkspaceRoot
@@ -39,13 +37,13 @@ func (r SandboxRunner) Run(ctx context.Context, commandName string, commandArgs 
 		var err error
 		cwd, err = os.Getwd()
 		if err != nil {
-			return tools.RunResult{}, fmt.Errorf("get current directory for sandbox: %w", err)
+			return RunResult{}, fmt.Errorf("get current directory for sandbox: %w", err)
 		}
 	}
 
 	result, err := r.base.Run(ctx, "bwrap", r.bwrapArgs(cwd, commandName, commandArgs), options)
 	if err != nil && result.ExitCode == 0 && result.Stdout == "" && result.Stderr == "" {
-		return tools.RunResult{
+		return RunResult{
 			Stderr:   fmt.Sprintf("Sandbox Error: %s\n(Hint: check the --cap-add=SYS_ADMIN option for docker run)", err.Error()),
 			ExitCode: 126,
 		}, nil

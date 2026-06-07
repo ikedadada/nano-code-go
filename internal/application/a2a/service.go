@@ -6,23 +6,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-
-	"nano-code-go/internal/domain"
 )
-
-type RunAgentRequest struct {
-	Prompt         string
-	IssueDriven    bool
-	Streaming      bool
-	Yolo           bool
-	Sandbox        bool
-	AllowedDomains []string
-	WorkspaceRoot  string
-}
-
-type RunAgentResponse struct {
-	Text string
-}
 
 type RunAgent func(ctx context.Context, request RunAgentRequest) (RunAgentResponse, error)
 
@@ -43,21 +27,22 @@ func NewService(config ServiceConfig) *Service {
 	return &Service{config: config}
 }
 
-func (s *Service) AgentCard() domain.A2AAgentCard {
-	card := domain.A2AAgentCard{
+func (s *Service) AgentCard() AgentCard {
+	return AgentCard{
 		ProtocolVersion:    "0.3.0",
 		Name:               "nano-code",
 		Description:        "A Go coding agent exposed over A2A JSON-RPC.",
 		URL:                s.config.AgentURL,
 		PreferredTransport: "JSONRPC",
-		Capabilities: domain.A2AAgentCapabilities{
+		AuthRequired:       s.config.AuthRequired,
+		Capabilities: AgentCapabilities{
 			Streaming:              false,
 			PushNotifications:      false,
 			StateTransitionHistory: false,
 		},
 		DefaultInputModes:  []string{"text/plain"},
 		DefaultOutputModes: []string{"text/plain"},
-		Skills: []domain.A2AAgentSkill{
+		Skills: []AgentSkill{
 			{
 				ID:          "coding-agent",
 				Name:        "Coding Agent",
@@ -68,29 +53,15 @@ func (s *Service) AgentCard() domain.A2AAgentCard {
 			},
 		},
 	}
-
-	if s.config.AuthRequired {
-		card.SecuritySchemes = map[string]domain.A2ASecurityScheme{
-			"bearerAuth": {
-				Type:         "http",
-				Scheme:       "bearer",
-				BearerFormat: "opaque",
-				Description:  "Bearer token required for A2A JSON-RPC requests.",
-			},
-		}
-		card.Security = []map[string][]string{{"bearerAuth": {}}}
-	}
-
-	return card
 }
 
-func (s *Service) SendMessage(ctx context.Context, command domain.A2AMessageSendCommand) (domain.A2AMessage, error) {
-	prompt := extractTextPrompt(command.Parts)
+func (s *Service) SendMessage(ctx context.Context, parts []TextPart) (Message, error) {
+	prompt := extractTextPrompt(parts)
 	if prompt == "" {
-		return domain.A2AMessage{}, errors.New("Text part is required")
+		return Message{}, errors.New("Text part is required")
 	}
 	if s.config.RunAgent == nil {
-		return domain.A2AMessage{}, errors.New("agent runner is not configured")
+		return Message{}, errors.New("agent runner is not configured")
 	}
 
 	result, err := s.config.RunAgent(ctx, RunAgentRequest{
@@ -103,23 +74,20 @@ func (s *Service) SendMessage(ctx context.Context, command domain.A2AMessageSend
 		WorkspaceRoot:  s.config.WorkspaceRoot,
 	})
 	if err != nil {
-		return domain.A2AMessage{}, err
+		return Message{}, err
 	}
 
-	return domain.A2AMessage{
-		Kind:      "message",
+	return Message{
 		MessageID: uuid.NewString(),
 		Role:      "agent",
-		Parts:     []domain.A2APart{{Kind: "text", Text: result.Text}},
+		Parts:     []TextPart{{Text: result.Text}},
 	}, nil
 }
 
-func extractTextPrompt(parts []domain.A2APart) string {
+func extractTextPrompt(parts []TextPart) string {
 	texts := make([]string, 0, len(parts))
 	for _, part := range parts {
-		if part.Kind == "text" {
-			texts = append(texts, part.Text)
-		}
+		texts = append(texts, part.Text)
 	}
 	return strings.TrimSpace(strings.Join(texts, "\n"))
 }

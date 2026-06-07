@@ -15,7 +15,7 @@ import (
 func TestWebFetchRejectsDisallowedDomains(t *testing.T) {
 	t.Parallel()
 
-	_, err := tools.WebFetch([]string{"example.com"}, fakeDoer(func(*http.Request) (*http.Response, error) {
+	_, err := tools.WebFetch([]string{"example.com"}, httpClient(func(*http.Request) (*http.Response, error) {
 		t.Fatal("HTTP client should not be called")
 		return nil, nil
 	})).Execute(context.Background(), map[string]any{"url": "https://not-example.test/page"})
@@ -28,7 +28,7 @@ func TestWebFetchAllowsConfiguredDomainsAndSubdomains(t *testing.T) {
 	t.Parallel()
 
 	var fetchedURL string
-	tool := tools.WebFetch([]string{"example.com"}, fakeDoer(func(request *http.Request) (*http.Response, error) {
+	tool := tools.WebFetch([]string{"example.com"}, httpClient(func(request *http.Request) (*http.Response, error) {
 		fetchedURL = request.URL.String()
 		return httpResponse(http.StatusOK, "ok"), nil
 	}))
@@ -48,7 +48,7 @@ func TestWebFetchAllowsConfiguredDomainsAndSubdomains(t *testing.T) {
 func TestWebFetchRejectsOversizedResponses(t *testing.T) {
 	t.Parallel()
 
-	tool := tools.WebFetch([]string{"example.com"}, fakeDoer(func(*http.Request) (*http.Response, error) {
+	tool := tools.WebFetch([]string{"example.com"}, httpClient(func(*http.Request) (*http.Response, error) {
 		return httpResponse(http.StatusOK, strings.Repeat("x", 1024*1024+1)), nil
 	}))
 
@@ -73,7 +73,7 @@ func TestWebFetchRejectsHTTPErrorAndRedirect(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			tool := tools.WebFetch([]string{"example.com"}, fakeDoer(func(*http.Request) (*http.Response, error) {
+			tool := tools.WebFetch([]string{"example.com"}, httpClient(func(*http.Request) (*http.Response, error) {
 				return httpResponse(tt.status, "body"), nil
 			}))
 			_, err := tool.Execute(context.Background(), map[string]any{"url": "https://example.com/page"})
@@ -86,8 +86,12 @@ func TestWebFetchRejectsHTTPErrorAndRedirect(t *testing.T) {
 
 type fakeDoer func(*http.Request) (*http.Response, error)
 
-func (f fakeDoer) Do(request *http.Request) (*http.Response, error) {
+func (f fakeDoer) RoundTrip(request *http.Request) (*http.Response, error) {
 	return f(request)
+}
+
+func httpClient(do func(*http.Request) (*http.Response, error)) *http.Client {
+	return &http.Client{Transport: fakeDoer(do)}
 }
 
 func httpResponse(status int, body string) *http.Response {

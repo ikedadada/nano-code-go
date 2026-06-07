@@ -14,12 +14,12 @@ import (
 	"strings"
 	"time"
 
+	"nano-code-go/internal/a2aprotocol"
 	"nano-code-go/internal/agentruntime"
 	appa2a "nano-code-go/internal/application/a2a"
-	"nano-code-go/internal/domain"
 )
 
-type Env map[string]string
+type Env = agentruntime.Env
 
 func EnvFromOS() Env {
 	env := make(Env)
@@ -128,32 +128,16 @@ func Run(ctx context.Context, stdout, stderr io.Writer, env Env) error {
 
 func defaultRunAgent(stderr io.Writer, env Env) appa2a.RunAgent {
 	return func(ctx context.Context, request appa2a.RunAgentRequest) (appa2a.RunAgentResponse, error) {
-		result, err := agentruntime.RunAgentWithIO(ctx, agentruntime.RunAgentRequest{
-			Prompt:         request.Prompt,
-			IssueDriven:    request.IssueDriven,
-			Streaming:      request.Streaming,
-			Yolo:           request.Yolo,
-			Sandbox:        request.Sandbox,
-			AllowedDomains: request.AllowedDomains,
-			WorkspaceRoot:  request.WorkspaceRoot,
-		}, strings.NewReader(""), io.Discard, stderr, agentRuntimeEnv(env))
+		result, err := agentruntime.RunAgentWithIO(ctx, request, strings.NewReader(""), io.Discard, stderr, env)
 		if err != nil {
 			return appa2a.RunAgentResponse{}, err
 		}
-		return appa2a.RunAgentResponse{Text: result.Text}, nil
+		return result, nil
 	}
-}
-
-func agentRuntimeEnv(env Env) agentruntime.Env {
-	result := make(agentruntime.Env, len(env))
-	for key, value := range env {
-		result[key] = value
-	}
-	return result
 }
 
 func (a *App) handleAgentCard(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, a.service.AgentCard())
+	writeJSON(w, http.StatusOK, protocolAgentCard(a.service.AgentCard()))
 }
 
 func (a *App) handleMessageSend(w http.ResponseWriter, r *http.Request) {
@@ -189,7 +173,7 @@ func (a *App) handleMessageSend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var params domain.A2AMessageSendParams
+	var params a2aprotocol.MessageSendParams
 	if err := json.Unmarshal(raw["params"], &params); err != nil ||
 		params.Message.Role != "user" ||
 		params.Message.MessageID == "" ||
@@ -204,19 +188,16 @@ func (a *App) handleMessageSend(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	message, err := a.service.SendMessage(r.Context(), domain.A2AMessageSendCommand{
-		MessageID: params.Message.MessageID,
-		Parts:     params.Message.Parts,
-	})
+	message, err := a.service.SendMessage(r.Context(), appTextParts(params.Message.Parts))
 	if err != nil {
 		writeJSONRPCError(w, http.StatusBadRequest, id, -32602, err.Error())
 		return
 	}
 
-	writeJSON(w, http.StatusOK, domain.A2AJSONRPCSuccess{
+	writeJSON(w, http.StatusOK, a2aprotocol.JSONRPCSuccess{
 		JSONRPC: "2.0",
 		ID:      id,
-		Result:  message,
+		Result:  protocolMessage(message),
 	})
 }
 
@@ -248,14 +229,84 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 }
 
 func writeJSONRPCError(w http.ResponseWriter, status int, id any, code int, message string) {
-	writeJSON(w, status, domain.A2AJSONRPCError{
+	writeJSON(w, status, a2aprotocol.JSONRPCError{
 		JSONRPC: "2.0",
 		ID:      id,
-		Error: domain.A2AJSONRPCErrorObj{
+		Error: a2aprotocol.JSONRPCErrorObj{
 			Code:    code,
 			Message: message,
 		},
 	})
+}
+
+func protocolAgentCard(card appa2a.AgentCard) a2aprotocol.AgentCard {
+	result := a2aprotocol.AgentCard{
+		ProtocolVersion:    card.ProtocolVersion,
+		Name:               card.Name,
+		Description:        card.Description,
+		URL:                card.URL,
+		PreferredTransport: card.PreferredTransport,
+		Capabilities: a2aprotocol.AgentCapabilities{
+			Streaming:              card.Capabilities.Streaming,
+			PushNotifications:      card.Capabilities.PushNotifications,
+			StateTransitionHistory: card.Capabilities.StateTransitionHistory,
+		},
+		DefaultInputModes:  append([]string(nil), card.DefaultInputModes...),
+		DefaultOutputModes: append([]string(nil), card.DefaultOutputModes...),
+		Skills:             protocolAgentSkills(card.Skills),
+	}
+	if card.AuthRequired {
+		result.SecuritySchemes = map[string]a2aprotocol.SecurityScheme{
+			"bearerAuth": {
+				Type:         "http",
+				Scheme:       "bearer",
+				BearerFormat: "opaque",
+				Description:  "Bearer token required for A2A JSON-RPC requests.",
+			},
+		}
+		result.Security = []map[string][]string{{"bearerAuth": {}}}
+	}
+	return result
+}
+
+func protocolAgentSkills(skills []appa2a.AgentSkill) []a2aprotocol.AgentSkill {
+	result := make([]a2aprotocol.AgentSkill, 0, len(skills))
+	for _, skill := range skills {
+		result = append(result, a2aprotocol.AgentSkill{
+			ID:          skill.ID,
+			Name:        skill.Name,
+			Description: skill.Description,
+			Tags:        append([]string(nil), skill.Tags...),
+			InputModes:  append([]string(nil), skill.InputModes...),
+			OutputModes: append([]string(nil), skill.OutputModes...),
+		})
+	}
+	return result
+}
+
+func appTextParts(parts []a2aprotocol.Part) []appa2a.TextPart {
+	result := make([]appa2a.TextPart, 0, len(parts))
+	for _, part := range parts {
+		result = append(result, appa2a.TextPart{Text: part.Text})
+	}
+	return result
+}
+
+func protocolMessage(message appa2a.Message) a2aprotocol.Message {
+	return a2aprotocol.Message{
+		Kind:      "message",
+		MessageID: message.MessageID,
+		Role:      message.Role,
+		Parts:     protocolParts(message.Parts),
+	}
+}
+
+func protocolParts(parts []appa2a.TextPart) []a2aprotocol.Part {
+	result := make([]a2aprotocol.Part, 0, len(parts))
+	for _, part := range parts {
+		result = append(result, a2aprotocol.Part{Kind: "text", Text: part.Text})
+	}
+	return result
 }
 
 func parseJSONRPCID(raw json.RawMessage) any {

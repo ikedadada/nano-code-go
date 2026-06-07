@@ -6,14 +6,12 @@ import (
 	anthropic "github.com/anthropics/anthropic-sdk-go"
 	openai "github.com/openai/openai-go/v3"
 	"google.golang.org/genai"
-
-	"nano-code-go/internal/domain"
 )
 
 func sdkError(provider string, err error) error {
 	var openAIErr *openai.Error
 	if errors.As(err, &openAIErr) {
-		return &domain.LLMAPIError{
+		return &APIError{
 			Status:   openAIErr.StatusCode,
 			Provider: provider,
 			Code:     openAIErr.Code,
@@ -24,7 +22,7 @@ func sdkError(provider string, err error) error {
 
 	var anthropicErr *anthropic.Error
 	if errors.As(err, &anthropicErr) {
-		return &domain.LLMAPIError{
+		return &APIError{
 			Status:   anthropicErr.StatusCode,
 			Provider: provider,
 			Code:     string(anthropicErr.Type()),
@@ -35,7 +33,7 @@ func sdkError(provider string, err error) error {
 
 	var googleErr genai.APIError
 	if errors.As(err, &googleErr) {
-		return &domain.LLMAPIError{
+		return &APIError{
 			Status:   googleErr.Code,
 			Provider: provider,
 			Code:     googleErr.Status,

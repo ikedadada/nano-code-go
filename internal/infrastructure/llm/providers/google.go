@@ -12,17 +12,11 @@ import (
 
 type GoogleProvider struct {
 	modelID string
-	apiKey  string
-	baseURL string
 	client  *genai.Client
 	initErr error
 }
 
 func NewGoogle(modelID string, config Config) *GoogleProvider {
-	baseURL := config.BaseURL
-	if baseURL == "" {
-		baseURL = "https://generativelanguage.googleapis.com/v1beta"
-	}
 	clientConfig := &genai.ClientConfig{
 		APIKey:     config.APIKey,
 		Backend:    genai.BackendGeminiAPI,
@@ -34,8 +28,6 @@ func NewGoogle(modelID string, config Config) *GoogleProvider {
 	client, err := genai.NewClient(context.Background(), clientConfig)
 	return &GoogleProvider{
 		modelID: modelID,
-		apiKey:  config.APIKey,
-		baseURL: strings.TrimRight(baseURL, "/"),
 		client:  client,
 		initErr: err,
 	}
@@ -50,7 +42,7 @@ func (p *GoogleProvider) Generate(ctx context.Context, params domain.GeneratePar
 		return domain.GenerateTextResult{}, sdkError("google", err)
 	}
 	if len(response.Candidates) == 0 {
-		return domain.GenerateTextResult{}, &domain.LLMAPIError{Status: 500, Provider: "google", Message: "No candidates returned from Google API", Raw: response}
+		return domain.GenerateTextResult{}, &APIError{Status: 500, Provider: "google", Message: "No candidates returned from Google API", Raw: response}
 	}
 
 	candidate := response.Candidates[0]
