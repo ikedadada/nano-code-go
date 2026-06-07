@@ -128,11 +128,22 @@ func Run(ctx context.Context, stdout, stderr io.Writer, env Env) error {
 
 func defaultRunAgent(stderr io.Writer, env Env) appa2a.RunAgent {
 	return func(ctx context.Context, request appa2a.RunAgentRequest) (appa2a.RunAgentResponse, error) {
-		result, err := agentruntime.RunAgentWithIO(ctx, request, strings.NewReader(""), io.Discard, stderr, env)
+		result, err := agentruntime.RunAgentWithIO(ctx, agentruntime.RunAgentRequest{
+			Prompt:         request.Prompt,
+			IssueDriven:    request.IssueDriven,
+			Streaming:      request.Streaming,
+			Yolo:           request.Yolo,
+			Sandbox:        request.Sandbox,
+			AllowedDomains: append([]string(nil), request.AllowedDomains...),
+			WorkspaceRoot:  request.WorkspaceRoot,
+		}, strings.NewReader(""), io.Discard, stderr, env)
 		if err != nil {
 			return appa2a.RunAgentResponse{}, err
 		}
-		return result, nil
+		return appa2a.RunAgentResponse{
+			Text:     result.Text,
+			Streamed: result.Streamed,
+		}, nil
 	}
 }
 

@@ -23,7 +23,11 @@ var allowedCommands = map[string]struct{}{
 	"make": {},
 }
 
-func ExecCommand(workspaceRoot string, runner process.CommandRunner) domain.Tool {
+type CommandRunner interface {
+	Run(ctx context.Context, commandName string, commandArgs []string, options process.RunOptions) (process.RunResult, error)
+}
+
+func ExecCommand(workspaceRoot string, runner CommandRunner) domain.Tool {
 	if runner == nil {
 		runner = process.OSCommandRunner{}
 	}
@@ -52,7 +56,7 @@ func ExecCommand(workspaceRoot string, runner process.CommandRunner) domain.Tool
 	}
 }
 
-func execCommandExecute(ctx context.Context, workspaceRoot string, runner process.CommandRunner, commandName string, commandArgs []string) (string, error) {
+func execCommandExecute(ctx context.Context, workspaceRoot string, runner CommandRunner, commandName string, commandArgs []string) (string, error) {
 	if _, ok := allowedCommands[commandName]; !ok {
 		return "", fmt.Errorf("Command %q is not allowed. Allowed commands are: bun, ls, git, gh, curl, go, make", commandName)
 	}

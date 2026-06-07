@@ -17,5 +17,5 @@ func (e *APIError) Error() string {
 	if e.Message != "" {
 		return e.Message
 	}
-	return fmt.Sprintf("LLM API Error: %s responded with status %d", e.Provider, e.Status)
+	return fmt.Sprintf("llm api error: %s responded with status %d", e.Provider, e.Status)
 }

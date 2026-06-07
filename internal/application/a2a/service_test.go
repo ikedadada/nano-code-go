@@ -93,7 +93,7 @@ func TestService_SendMessageRejectsEmptyText(t *testing.T) {
 	})
 
 	_, err := service.SendMessage(context.Background(), []appa2a.TextPart{{Text: "  "}})
-	if err == nil || err.Error() != "Text part is required" {
-		t.Fatalf("SendMessage() error = %v, want Text part is required", err)
+	if err == nil || err.Error() != "text part is required" {
+		t.Fatalf("SendMessage() error = %v, want text part is required", err)
 	}
 }

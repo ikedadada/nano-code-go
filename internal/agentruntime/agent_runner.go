@@ -68,9 +68,9 @@ func RunAgentWithIO(
 	if request.Yolo {
 		approvalPolicy = approval.AllowAll
 	}
-	var commandRunner process.CommandRunner
+	var commandRunner tools.CommandRunner
 	if request.Sandbox {
-		commandRunner = process.NewSandboxRunner(safeSandboxEnv(env), false, nil)
+		commandRunner = process.NewSandboxRunner(safeSandboxEnv(env), false)
 	}
 
 	nanoAgent := agent.New(agent.Config{
