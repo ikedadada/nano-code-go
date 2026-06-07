@@ -191,8 +191,8 @@
 
 ## Supply chain follow-up: Takumi Guard メール認証
 
-- [ ] 無料のメール認証トークン (`tg_anon_...`) を使うローカル開発手順を README に追記する。`.netrc` への保存、`chmod 600 ~/.netrc`、`GOPROXY=https://golang.flatt.tech` の設定、トークンをリポジトリにコミットしない注意を含める。
-- [ ] メール認証トークン利用時の動作確認手順を追加する。`github.com/flatt-security/hola-takumi-go@v0.1.0` が `403 Forbidden` で拒否されることと、通常の `go mod download` / `go mod verify` が通ることを確認する。
+- [x] 無料のメール認証トークン (`tg_anon_...`) を使うローカル開発手順を README に追記する。`.netrc` への保存、`chmod 600 ~/.netrc`、`GOPROXY=https://golang.flatt.tech` の設定、トークンをリポジトリにコミットしない注意を含める。
+- [x] メール認証トークン利用時の動作確認手順を追加する。`github.com/flatt-security/hola-takumi-go@v0.1.0` が `403 Forbidden` で拒否されることと、通常の `go mod download` / `go mod verify` が通ることを確認する。
 
 ## 完了条件
 
