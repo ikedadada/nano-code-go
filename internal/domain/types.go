@@ -2,9 +2,10 @@ package domain
 
 import (
 	"context"
-	"fmt"
 )
 
+// ToolParameters is the JSON Schema object used by providers to describe a
+// tool's accepted input.
 type ToolParameters struct {
 	Type       string         `json:"type"`
 	Properties map[string]any `json:"properties,omitempty"`
@@ -23,11 +24,6 @@ type ToolCall struct {
 	ToolCallID string
 	Name       string
 	Args       map[string]any
-}
-
-type ToolResult struct {
-	ToolCallID string
-	Result     string
 }
 
 type MessageRole string
@@ -81,7 +77,6 @@ type StreamKind string
 
 const (
 	StreamKindDelta StreamKind = "delta"
-	StreamKindEvent StreamKind = "event"
 	StreamKindDone  StreamKind = "done"
 )
 
@@ -97,22 +92,4 @@ type StreamChunk struct {
 type LanguageModel interface {
 	Generate(ctx context.Context, params GenerateParams) (GenerateTextResult, error)
 	Stream(ctx context.Context, params GenerateParams) (<-chan StreamChunk, error)
-}
-
-type LLMAPIError struct {
-	Status   int
-	Provider string
-	Code     string
-	Message  string
-	Raw      any
-}
-
-func (e *LLMAPIError) Error() string {
-	if e == nil {
-		return "<nil>"
-	}
-	if e.Message != "" {
-		return e.Message
-	}
-	return fmt.Sprintf("LLM API Error: %s responded with status %d", e.Provider, e.Status)
 }

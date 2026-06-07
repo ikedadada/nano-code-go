@@ -1,24 +1,24 @@
-package domain_test
+package providers_test
 
 import (
 	"reflect"
 	"testing"
 
-	"nano-code-go/internal/domain"
+	"nano-code-go/internal/infrastructure/llm/providers"
 )
 
-func TestLLMAPIError(t *testing.T) {
+func TestAPIError(t *testing.T) {
 	t.Parallel()
 
 	raw := map[string]any{"requestId": "req-1"}
-	err := &domain.LLMAPIError{
+	err := &providers.APIError{
 		Status:   429,
 		Provider: "openai",
 		Code:     "rate_limit",
 		Raw:      raw,
 	}
 
-	if got, want := err.Error(), "LLM API Error: openai responded with status 429"; got != want {
+	if got, want := err.Error(), "llm api error: openai responded with status 429"; got != want {
 		t.Fatalf("Error() = %q, want %q", got, want)
 	}
 	if err.Status != 429 {

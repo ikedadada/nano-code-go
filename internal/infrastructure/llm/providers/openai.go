@@ -16,8 +16,6 @@ import (
 
 type OpenAIProvider struct {
 	modelID string
-	apiKey  string
-	baseURL string
 	client  openai.Client
 }
 
@@ -38,8 +36,6 @@ func NewOpenAI(modelID string, config Config) *OpenAIProvider {
 
 	return &OpenAIProvider{
 		modelID: modelID,
-		apiKey:  config.APIKey,
-		baseURL: baseURL,
 		client:  openai.NewClient(options...),
 	}
 }
@@ -50,7 +46,7 @@ func (p *OpenAIProvider) Generate(ctx context.Context, params domain.GeneratePar
 		return domain.GenerateTextResult{}, sdkError("openai", err)
 	}
 	if len(response.Choices) == 0 {
-		return domain.GenerateTextResult{}, &domain.LLMAPIError{Status: 500, Provider: "openai", Message: "No choices returned from OpenAI API", Raw: response}
+		return domain.GenerateTextResult{}, &APIError{Status: 500, Provider: "openai", Message: "No choices returned from OpenAI API", Raw: response}
 	}
 
 	choice := response.Choices[0]

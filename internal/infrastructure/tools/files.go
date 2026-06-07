@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
@@ -15,7 +16,7 @@ const maxReadFileSize = 100 * 1024
 type Options struct {
 	WorkspaceRoot  string
 	AllowedDomains []string
-	HTTPClient     HTTPDoer
+	HTTPClient     *http.Client
 	CommandRunner  CommandRunner
 }
 

@@ -189,6 +189,20 @@
 - [x] OpenAI と Google で共有していた `toolSchema` を削除し、各 provider の schema 変換を provider 実装内に移す。
 - [x] 上記リファクタ後に provider tests と全体 Go test / vet / race を通し、挙動差分がないことを確認する。
 
+## Review follow-up: 全体再レビュー指摘
+
+- [x] `internal/infrastructure/prompts/issueInstructions.md` の TypeScript template expression (`${process.env.ISSUE_NUMBER || '(none)'}`) を Go 実装で正しく扱う。issue-driven prompt で literal text が渡らないよう、env を渡して描画するか静的文言へ変更する。
+- [x] `internal/infrastructure/prompts/baseInstructions.md` と `issueInstructions.md` の “TypeScript coding agent” 表記を Go 実装に合う language-neutral または Go-aware な文言へ更新し、prompt tests も追従する。
+- [x] `internal/domain/a2a.go` にある A2A JSON-RPC / Agent Card / security scheme などの wire DTO を domain から移動する。`interfaces/a2a` または専用 protocol package に置き、`application/a2a` は prompt/text など app-owned 型で受け渡す。
+- [x] `internal/domain/types.go` の `LLMAPIError` を見直す。provider/HTTP/SDK raw payload を domain に置かず、`providers.APIError` へ移すか、application が必要な最小分類 interface に縮める。
+- [x] `internal/infrastructure/tools/exec.go` の command allowlist を Go 移行後の用途に合わせて見直す。`bun` 維持の理由を明記するか、`go` / `make` など Go 開発向け command を追加し、error message も更新する。
+- [x] `RunAgentRequest` / `RunAgentResponse` / `Env` 系の重複を整理する。`interfaces/cli`、`application/a2a`、`agentruntime` 間で手動 field copy が drift しないよう、共通 runtime 型の共有または alias を検討する。
+- [x] `internal/infrastructure/a2a/client.go` と `internal/infrastructure/tools/web_fetch.go` に残る独自 `HTTPDoer` を見直す。production API は標準 `*http.Client` に寄せ、tests は `roundTripFunc` / `httptest.Server` を使う形にする。
+- [x] `internal/infrastructure/process/sandbox.go` が `internal/infrastructure/tools` に依存している構造を見直す。command runner contract を process 側または application port 側へ移し、sandbox が tool registry layer に依存しないようにする。
+- [x] OpenAI / Anthropic / Google provider struct の未使用 field (`apiKey` / `baseURL`) を削除する。diagnostics や accessor 用途が必要なら使用箇所を明確化する。
+- [x] `internal/domain/types.go` と `internal/domain/a2a.go` の未使用らしき型・値 (`ToolResult`、`StreamKindEvent`、`A2AJSONRPCRequest`) を整理する。契約として残すなら usage/tests を追加し、移植残りなら削除する。
+- [x] `domain.ToolParameters` が JSON Schema 契約であることを明示する。必要なら `ToolInputSchema` などへ rename/documentation し、provider ごとの schema 変換は個別実装を維持する。
+
 ## Supply chain follow-up: Takumi Guard メール認証
 
 - [x] 無料のメール認証トークン (`tg_anon_...`) を使うローカル開発手順を README に追記する。`.netrc` への保存、`chmod 600 ~/.netrc`、`GOPROXY=https://golang.flatt.tech` の設定、トークンをリポジトリにコミットしない注意を含める。

@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strings"
 
+	"nano-code-go/internal/a2aprotocol"
 	"nano-code-go/internal/domain"
 )
 
@@ -74,7 +75,7 @@ func toolName(agent RegisteredAgent, skillID string) string {
 	return name
 }
 
-func toolDescription(agent RegisteredAgent, skill domain.A2AAgentSkill) string {
+func toolDescription(agent RegisteredAgent, skill a2aprotocol.AgentSkill) string {
 	parts := []string{
 		fmt.Sprintf("Delegate to remote A2A agent '%s' for skill '%s'.", agent.Card.Name, skill.Name),
 		skill.Description,

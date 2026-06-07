@@ -53,7 +53,7 @@ func RunAgentWithIO(
 		return RunAgentResponse{}, err
 	}
 
-	instructions, err := prompts.LoadInstructions(request.WorkspaceRoot, request.IssueDriven)
+	instructions, err := prompts.LoadInstructionsWithEnv(request.WorkspaceRoot, request.IssueDriven, stringEnv(env))
 	if err != nil {
 		return RunAgentResponse{}, err
 	}
@@ -70,7 +70,7 @@ func RunAgentWithIO(
 	}
 	var commandRunner tools.CommandRunner
 	if request.Sandbox {
-		commandRunner = process.NewSandboxRunner(safeSandboxEnv(env), false, nil)
+		commandRunner = process.NewSandboxRunner(safeSandboxEnv(env), false)
 	}
 
 	nanoAgent := agent.New(agent.Config{

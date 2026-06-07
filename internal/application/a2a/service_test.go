@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	appa2a "nano-code-go/internal/application/a2a"
-	"nano-code-go/internal/domain"
 )
 
 func TestService_AgentCard(t *testing.T) {
@@ -30,11 +29,8 @@ func TestService_AgentCard(t *testing.T) {
 	if card.PreferredTransport != "JSONRPC" {
 		t.Fatalf("PreferredTransport = %q, want JSONRPC", card.PreferredTransport)
 	}
-	if !reflect.DeepEqual(card.Security, []map[string][]string{{"bearerAuth": {}}}) {
-		t.Fatalf("Security = %#v", card.Security)
-	}
-	if card.SecuritySchemes["bearerAuth"].Scheme != "bearer" {
-		t.Fatalf("bearer scheme = %#v", card.SecuritySchemes["bearerAuth"])
+	if !card.AuthRequired {
+		t.Fatalf("AuthRequired = false, want true")
 	}
 	if len(card.Skills) != 1 || card.Skills[0].ID != "coding-agent" {
 		t.Fatalf("Skills = %#v", card.Skills)
@@ -55,12 +51,9 @@ func TestService_SendMessage(t *testing.T) {
 		},
 	})
 
-	message, err := service.SendMessage(context.Background(), domain.A2AMessageSendCommand{
-		MessageID: "msg-1",
-		Parts: []domain.A2APart{
-			{Kind: "text", Text: "hello"},
-			{Kind: "text", Text: "world"},
-		},
+	message, err := service.SendMessage(context.Background(), []appa2a.TextPart{
+		{Text: "hello"},
+		{Text: "world"},
 	})
 	if err != nil {
 		t.Fatalf("SendMessage() error = %v", err)
@@ -78,7 +71,7 @@ func TestService_SendMessage(t *testing.T) {
 	if !reflect.DeepEqual(requests, []appa2a.RunAgentRequest{wantRequest}) {
 		t.Fatalf("requests = %#v, want %#v", requests, []appa2a.RunAgentRequest{wantRequest})
 	}
-	if message.Kind != "message" || message.Role != "agent" {
+	if message.Role != "agent" {
 		t.Fatalf("message = %#v", message)
 	}
 	if len(message.Parts) != 1 || message.Parts[0].Text != "answer:hello\nworld" {
@@ -99,11 +92,8 @@ func TestService_SendMessageRejectsEmptyText(t *testing.T) {
 		},
 	})
 
-	_, err := service.SendMessage(context.Background(), domain.A2AMessageSendCommand{
-		MessageID: "msg-1",
-		Parts:     []domain.A2APart{{Kind: "text", Text: "  "}},
-	})
-	if err == nil || err.Error() != "Text part is required" {
-		t.Fatalf("SendMessage() error = %v, want Text part is required", err)
+	_, err := service.SendMessage(context.Background(), []appa2a.TextPart{{Text: "  "}})
+	if err == nil || err.Error() != "text part is required" {
+		t.Fatalf("SendMessage() error = %v, want text part is required", err)
 	}
 }

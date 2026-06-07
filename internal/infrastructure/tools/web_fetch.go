@@ -14,11 +14,7 @@ import (
 
 const maxWebFetchSize = 1024 * 1024
 
-type HTTPDoer interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
-func WebFetch(allowedDomains []string, client HTTPDoer) domain.Tool {
+func WebFetch(allowedDomains []string, client *http.Client) domain.Tool {
 	if client == nil {
 		client = &http.Client{
 			CheckRedirect: func(*http.Request, []*http.Request) error {
@@ -51,7 +47,7 @@ func WebFetch(allowedDomains []string, client HTTPDoer) domain.Tool {
 	}
 }
 
-func webFetchExecute(ctx context.Context, allowedDomains []string, client HTTPDoer, rawURL string) (string, error) {
+func webFetchExecute(ctx context.Context, allowedDomains []string, client *http.Client, rawURL string) (string, error) {
 	targetURL, err := url.Parse(rawURL)
 	if err != nil || targetURL.Scheme == "" || targetURL.Hostname() == "" {
 		return "", errors.New("Invalid URL format")

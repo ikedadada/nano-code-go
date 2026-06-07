@@ -15,8 +15,6 @@ import (
 
 type AnthropicProvider struct {
 	modelID string
-	apiKey  string
-	baseURL string
 	client  anthropic.Client
 }
 
@@ -38,8 +36,6 @@ func NewAnthropic(modelID string, config Config) *AnthropicProvider {
 
 	return &AnthropicProvider{
 		modelID: modelID,
-		apiKey:  config.APIKey,
-		baseURL: baseURL,
 		client:  anthropic.NewClient(options...),
 	}
 }
