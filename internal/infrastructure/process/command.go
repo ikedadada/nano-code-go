@@ -9,10 +9,6 @@ import (
 
 const maxCommandOutputLength = 2024
 
-type CommandRunner interface {
-	Run(ctx context.Context, commandName string, commandArgs []string, options RunOptions) (RunResult, error)
-}
-
 type RunOptions struct {
 	WorkspaceRoot string
 	Timeout       time.Duration

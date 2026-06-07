@@ -1,9 +1,19 @@
 package a2a
 
-import "nano-code-go/internal/agentruntime"
+type RunAgentRequest struct {
+	Prompt         string
+	IssueDriven    bool
+	Streaming      bool
+	Yolo           bool
+	Sandbox        bool
+	AllowedDomains []string
+	WorkspaceRoot  string
+}
 
-type RunAgentRequest = agentruntime.RunAgentRequest
-type RunAgentResponse = agentruntime.RunAgentResponse
+type RunAgentResponse struct {
+	Text     string
+	Streamed bool
+}
 
 type TextPart struct {
 	Text string

@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"nano-code-go/internal/domain"
-	"nano-code-go/internal/infrastructure/process"
 )
 
 const maxReadFileSize = 100 * 1024
@@ -18,7 +17,7 @@ type Options struct {
 	WorkspaceRoot  string
 	AllowedDomains []string
 	HTTPClient     *http.Client
-	CommandRunner  process.CommandRunner
+	CommandRunner  CommandRunner
 }
 
 func ReadFile(workspaceRoot string) domain.Tool {

@@ -28,7 +28,7 @@ func TestSandboxRunnerWrapsCommandWithBwrap(t *testing.T) {
 	t.Setenv("PATH", "/bin")
 
 	base := &recordingCommandRunner{result: RunResult{Stdout: "ok", ExitCode: 0}}
-	runner := NewSandboxRunner(map[string]string{"CUSTOM": "value"}, false, base)
+	runner := newSandboxRunner(map[string]string{"CUSTOM": "value"}, false, base)
 	options := RunOptions{WorkspaceRoot: "/workspace", Timeout: 5 * time.Second}
 
 	result, err := runner.Run(context.Background(), "bun", []string{"test"}, options)
@@ -67,7 +67,7 @@ func TestSandboxRunnerAllowsNetwork(t *testing.T) {
 	t.Setenv("PATH", "/bin")
 
 	base := &recordingCommandRunner{}
-	runner := NewSandboxRunner(nil, true, base)
+	runner := newSandboxRunner(nil, true, base)
 	_, err := runner.Run(context.Background(), "curl", []string{"https://example.com"}, RunOptions{WorkspaceRoot: "/workspace"})
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)
@@ -81,7 +81,7 @@ func TestSandboxRunnerReportsSpawnFailure(t *testing.T) {
 	t.Parallel()
 
 	base := &recordingCommandRunner{err: errors.New("executable file not found")}
-	runner := NewSandboxRunner(nil, false, base)
+	runner := newSandboxRunner(nil, false, base)
 	result, err := runner.Run(context.Background(), "ls", nil, RunOptions{WorkspaceRoot: "/workspace"})
 	if err != nil {
 		t.Fatalf("Run() error = %v", err)

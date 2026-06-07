@@ -18,7 +18,7 @@ func TestAPIError(t *testing.T) {
 		Raw:      raw,
 	}
 
-	if got, want := err.Error(), "LLM API Error: openai responded with status 429"; got != want {
+	if got, want := err.Error(), "llm api error: openai responded with status 429"; got != want {
 		t.Fatalf("Error() = %q, want %q", got, want)
 	}
 	if err.Status != 429 {

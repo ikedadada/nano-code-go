@@ -11,12 +11,20 @@ import (
 const defaultPath = "/usr/local/bin:/usr/bin:/bin"
 
 type SandboxRunner struct {
-	base         CommandRunner
+	base         commandRunner
 	env          map[string]string
 	allowNetwork bool
 }
 
-func NewSandboxRunner(env map[string]string, allowNetwork bool, base CommandRunner) SandboxRunner {
+type commandRunner interface {
+	Run(ctx context.Context, commandName string, commandArgs []string, options RunOptions) (RunResult, error)
+}
+
+func NewSandboxRunner(env map[string]string, allowNetwork bool) SandboxRunner {
+	return newSandboxRunner(env, allowNetwork, nil)
+}
+
+func newSandboxRunner(env map[string]string, allowNetwork bool, base commandRunner) SandboxRunner {
 	if base == nil {
 		base = OSCommandRunner{}
 	}

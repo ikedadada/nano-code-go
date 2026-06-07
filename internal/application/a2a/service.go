@@ -58,7 +58,7 @@ func (s *Service) AgentCard() AgentCard {
 func (s *Service) SendMessage(ctx context.Context, parts []TextPart) (Message, error) {
 	prompt := extractTextPrompt(parts)
 	if prompt == "" {
-		return Message{}, errors.New("Text part is required")
+		return Message{}, errors.New("text part is required")
 	}
 	if s.config.RunAgent == nil {
 		return Message{}, errors.New("agent runner is not configured")
