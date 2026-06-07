@@ -40,7 +40,7 @@
 ## Phase 1: Go プロジェクト土台
 
 - [x] `go mod init` を実行する。
-- [x] `Makefile` を追加する: `fmt`、`test`、`lint`、`run`、`run-a2a`。
+- [x] 開発コマンドを README に整理し、`mise.toml` で Go version とローカル環境変数を管理する。
 - [x] `.gitignore` を Go binary、coverage、temporary file 向けに追加する。
 - [x] Go 標準ツールによる品質チェックを追加する: `gofmt`、`go vet`。
 - [x] `go test ./...` が空実装でも通る状態を作る。
@@ -188,6 +188,11 @@
 - [x] `internal/infrastructure/llm/providers/http.go` を削除し、`Config` は `config.go`、stream channel helper は `stream.go` に分割する。
 - [x] OpenAI と Google で共有していた `toolSchema` を削除し、各 provider の schema 変換を provider 実装内に移す。
 - [x] 上記リファクタ後に provider tests と全体 Go test / vet / race を通し、挙動差分がないことを確認する。
+
+## Supply chain follow-up: Takumi Guard メール認証
+
+- [ ] 無料のメール認証トークン (`tg_anon_...`) を使うローカル開発手順を README に追記する。`.netrc` への保存、`chmod 600 ~/.netrc`、`GOPROXY=https://golang.flatt.tech` の設定、トークンをリポジトリにコミットしない注意を含める。
+- [ ] メール認証トークン利用時の動作確認手順を追加する。`github.com/flatt-security/hola-takumi-go@v0.1.0` が `403 Forbidden` で拒否されることと、通常の `go mod download` / `go mod verify` が通ることを確認する。
 
 ## 完了条件
 

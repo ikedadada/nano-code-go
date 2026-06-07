@@ -1,6 +1,13 @@
 approval_policy = "on-request"
 default_permissions = "local"
 
+# Keep mise.toml as the single source of GOCACHE/GOPROXY values.
+# This project config only preserves those mise-exported variables for Codex
+# subprocesses; it intentionally does not define their values here.
+[shell_environment_policy]
+inherit = "all"
+include_only = ["PATH", "HOME", "GOCACHE", "GOPROXY"]
+
 [permissions.local.filesystem]
 glob_scan_max_depth = 3
 
@@ -14,6 +21,7 @@ glob_scan_max_depth = 3
 enabled = true
 
 [permissions.local.network.domains]
+"golang.flatt.tech" = "allow"
 "proxy.golang.org" = "allow"
 "sum.golang.org" = "allow"
 "golang.org" = "allow"

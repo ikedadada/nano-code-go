@@ -1,2 +1,6 @@
 [tools]
 go = "1.26.4"
+
+[env]
+GOCACHE = "/tmp/go-build"
+GOPROXY = "https://golang.flatt.tech"
