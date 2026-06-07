@@ -95,9 +95,13 @@ and Gemini while preserving the internal `domain.LanguageModel` interface.
 
 ## Supply Chain Guard
 
-Local development and CI use Takumi Guard anonymous mode for public Go module
-downloads. Takumi Guard is configured as `GOPROXY` and blocks known malicious
-modules before they are downloaded.
+This repository routes public Go module downloads through Takumi Guard.
+Repository configuration stays token-free: `mise.toml` sets
+`GOPROXY=https://golang.flatt.tech`, and CI uses anonymous Takumi Guard mode.
+
+CI runs with the Go module cache disabled, so `go mod download` checks current
+dependencies through Takumi Guard instead of relying on `actions/setup-go`
+cache hits.
 
 Local development is configured through `mise.toml`:
 
@@ -127,9 +131,24 @@ available through the proxy or when a blocked module returns an error.
 Use `mise` for local development so these values stay centralized in
 `mise.toml`.
 
-This repository currently uses anonymous mode only. Free email-verified
-`tg_anon_...` tokens for per-developer download tracking and breach
-notifications are tracked as follow-up work in `TODO.md`.
+Developers may opt into Takumi Guard email-verified access for personal
+download tracking and notifications. Follow the upstream
+[Go Modules quickstart](https://shisho.dev/docs/t/guard/quickstart/golang/) to
+obtain a `tg_anon_...` token, store it in `~/.netrc`, and set
+`chmod 600 ~/.netrc`. Keep tokens outside this repository; do not commit them
+to `go.mod`, `go.sum`, `mise.toml`, scripts, or CI logs.
+
+After local Takumi Guard setup changes, verify this repository still resolves
+its dependencies through the configured proxy:
+
+```sh
+go mod download
+go mod verify
+```
+
+For a full proxy smoke test, use the upstream quickstart's
+`github.com/flatt-security/hola-takumi-go@v0.1.0` check. It should be rejected
+with `403 Forbidden` when Takumi Guard is active.
 
 ## Legacy TypeScript Implementation
 

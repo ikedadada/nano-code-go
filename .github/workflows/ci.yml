@@ -21,7 +21,9 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-          cache: true
+          # Force module downloads through Takumi Guard on every CI run so newly
+          # blocked existing dependencies are not hidden by the GitHub Actions cache.
+          cache: false
 
       - name: Set up Takumi Guard
         uses: flatt-security/setup-takumi-guard-golang@v1
